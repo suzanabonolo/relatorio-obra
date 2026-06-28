@@ -657,6 +657,19 @@ function handleFotos(idx,input){
 function delFoto(a,f){ambFotos[a].fotos[f]=null;document.getElementById(`fw-${a}-${f}`)?.remove();}
 
 // ── REVIEW ──
+
+function toggleEtapa(idx){
+  const body=document.getElementById(`body-${idx}`);
+  const chevron=document.querySelector(`#etapa-${idx} .etapa-chevron`);
+  if(!body) return;
+  body.classList.toggle('open');
+  if(chevron) chevron.classList.toggle('open');
+}
+
+function updateEtapaHeader(idx){
+  refreshEtapa(idx);
+}
+
 function buildReview(){
   const et=etapas.filter(Boolean);
   const etRev=et.filter(e=>e.tipo!=='Planejamento');
