@@ -507,11 +507,11 @@ async function processarIA() {
   if(!texto) { alert('Cole ou grave o áudio primeiro.'); return; }
   const st = document.getElementById('iaStatus');
   st.innerHTML = '<div class="loading"><div class="spinner"></div> Processando com IA...</div>';
-  const prompt = 'Analise esta transcrição de visita de obra e extraia APENAS as etapas mencionadas.\n\nTranscrição:\n"""'+texto+'"""\n\nRetorne APENAS JSON válido, sem texto extra:\n{"etapas":[{"nome":"nome da etapa mencionada","status":"ok|pendente|alerta|semAlteracao","obs":"o que foi feito em uma frase","proximo":"próxima semana em uma frase"}],"realizacoes":["frase curta"],"previstos":["frase curta"]}\n\nRegras:\n- ok=avançou, pendente=pendências, alerta=problema\n- Inclua APENAS etapas mencionadas no áudio\n- Máximo 2 realizacoes e 2 previstos\n- Obs e proximo: máximo 15 palavras cada';
+  const prompt = 'Transcrição de obra:\n"""'+texto+'"""\n\nRetorne JSON minimalista, APENAS etapas mencionadas, sem comentários:\n{"e":[{"n":"etapa","s":"ok|pendente|alerta|semAlteracao","o":"obs curta","p":"proximo curto"}],"r":["realização"],"v":["previsto"]}\n\nonde s: ok=avançou,pendente=pendências,alerta=problema. Máximo 3 itens em r e v. Obs máximo 10 palavras.';
   try {
     const resp = await fetch('/api/chat', {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({model:'claude-sonnet-4-6',max_tokens:2000,messages:[{role:'user',content:prompt}]})
+      body: JSON.stringify({model:'claude-sonnet-4-6',max_tokens:800,messages:[{role:'user',content:prompt}]})
     });
     const data = await resp.json();
     console.log('API response:', JSON.stringify(data).substring(0,500));
@@ -524,11 +524,17 @@ async function processarIA() {
       console.error('JSON parse error:', parseErr, 'raw:', raw);
       throw new Error('Resposta da IA não é JSON válido: '+parseErr.message);
     }
-    _realizacoes = parsed.realizacoes||[];
-    _previstos = parsed.previstos||[];
-    (parsed.etapas||[]).forEach(pe => {
-      const idx = etapas.findIndex(e => e && e.item.toLowerCase().includes(pe.nome.toLowerCase().substring(0,6)));
-      if(idx>=0) { etapas[idx].status=pe.status||''; etapas[idx].obs=pe.obs||''; etapas[idx].proximo=pe.proximo||''; }
+    _realizacoes = parsed.realizacoes||parsed.r||[];
+    _previstos = parsed.previstos||parsed.v||[];
+    const etapasIA = parsed.etapas||parsed.e||[];
+    etapasIA.forEach(pe => {
+      const nome = pe.nome||pe.n||'';
+      const status = pe.status||pe.s||'';
+      const obs = pe.obs||pe.o||'';
+      const proximo = pe.proximo||pe.p||'';
+      if(!nome) return;
+      const idx = etapas.findIndex(e => e && e.item.toLowerCase().includes(nome.toLowerCase().substring(0,5)));
+      if(idx>=0) { etapas[idx].status=status; etapas[idx].obs=obs; etapas[idx].proximo=proximo; }
     });
     renderEtapas();
     st.innerHTML = '<div class="info-box" style="margin-top:12px;">✓ IA preencheu as etapas. Revise e ajuste os percentuais.</div>';
