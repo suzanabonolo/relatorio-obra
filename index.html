@@ -253,7 +253,7 @@ textarea{resize:vertical;min-height:72px;}
   </div>
   <div class="btn-row" style="margin-top:18px;">
     <button class="btn-secondary" onclick="goTo(3)">← Voltar</button>
-    <button class="btn-primary" onclick="window.print()">🖨️ Salvar PDF</button>
+    <button class="btn-primary" onclick="imprimirRelatorio()">🖨️ Salvar PDF</button>
   </div>
 </div>
 </div>
@@ -370,13 +370,38 @@ function renderEtapas(){
     if(!grupos[e.tipo]) grupos[e.tipo]=[];
     grupos[e.tipo].push({...e,idx:i});
   });
+  // show active etapas + first 3 upcoming (no status, no pct)
+  let upcomingCount=0;
   Object.keys(grupos).forEach(tipo=>{
-    if(tipo==='Planejamento') return; // ocultar na interface de edição
+    if(tipo==='Planejamento') return;
+    const visibles=grupos[tipo].filter(e=>{
+      if(e.status||e.obs||e.pct>0) return true;
+      if(upcomingCount<3){upcomingCount++;return true;}
+      return false;
+    });
+    if(!visibles.length) return;
     const gh = document.createElement('div');
     gh.className='grupo-header';
     gh.textContent=tipo;
     list.appendChild(gh);
-    grupos[tipo].forEach(e=>renderEtapaBlock(e.idx));
+    visibles.forEach(e=>renderEtapaBlock(e.idx));
+  });
+  // add "show all" button
+  const showAll=document.createElement('button');
+  showAll.className='btn-add';
+  showAll.textContent='↓ Ver todas as etapas futuras';
+  showAll.onclick=()=>{showAll.remove();renderEtapasAll();};
+  list.appendChild(showAll);
+}
+
+function renderEtapasAll(){
+  const list=document.getElementById('etapasList');
+  etapas.forEach((e,idx)=>{
+    if(!e||e.tipo==='Planejamento') return;
+    if(!document.getElementById(`etapa-${idx}`)){
+      // find or create group header
+      renderEtapaBlock(idx);
+    }
   });
 }
 
@@ -640,7 +665,7 @@ function buildReview(){
   let html=`<div class="review-section"><div class="review-label">Identificação</div>
     <div class="review-item"><span class="review-icon">👤</span><div class="review-text"><strong>${document.getElementById('cliente').value||'—'}</strong><span>Semana ${document.getElementById('semana').value||'—'} · ${document.getElementById('responsavel').value||'—'}</span></div></div>
   </div><div class="review-section"><div class="review-label">Etapas (${et.length})</div>`;
-  et.forEach(e=>{html+=`<div class="review-item"><span class="review-icon">${sIcon[e.status]||'⚫'}</span><div class="review-text"><strong>${e.item}${e.refeicao?' ⚡':''}</strong><span>${e.obs||'Sem observações'}</span></div></div>`;});
+  etRev.forEach(e=>{html+=`<div class="review-item"><span class="review-icon">${sIcon[e.status]||'⚫'}</span><div class="review-text"><strong>${e.item}${e.refeicao?' ⚡':''}</strong><span>${e.obs||'Sem observações'}</span></div></div>`;});
   html+='</div>';
   const sem=et.filter(e=>!e.status),semO=et.filter(e=>!e.obs);
   if(sem.length||semO.length||totalF===0){
@@ -725,6 +750,37 @@ function buildExport(){
     body+='</div>';
   }
   document.getElementById('expBody').innerHTML=body;
+}
+
+function imprimirRelatorio(){
+  // open print in new window with full content rendered
+  const preview=document.getElementById('exportPreview').innerHTML;
+  const win=window.open('','_blank');
+  win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
+  <title>Relatório de Obra - Suzana Bonolo</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;500&family=Inter:wght@300;400;500;600&display=swap');
+    :root{--salmon:#E8A090;--salmon-light:#F2C4B8;--salmon-bg:#FBF0ED;--brown-dark:#3D2B2B;--brown-mid:#6B4A4A;--brown-light:#C4A09A;--white:#FFFFFF;--off-white:#FAF8F7;--gray-light:#F0EDEC;--gray-mid:#D5CECE;--green-ok:#5C8A6E;--amber:#C88A3A;--red-alert:#C05050;}
+    *{box-sizing:border-box;margin:0;padding:0;}
+    body{font-family:'Inter',sans-serif;background:white;}
+    .prev-cover{background:var(--salmon);padding:44px 40px;text-align:center;}
+    .prev-cover-title{font-family:'Cormorant Garamond',serif;font-size:34px;font-weight:300;color:var(--brown-dark);margin-bottom:6px;}
+    .prev-cover-sub{font-size:13px;color:var(--brown-dark);opacity:.75;}
+    .prev-body{padding:32px 40px;}
+    .prev-h2{font-family:'Cormorant Garamond',serif;font-size:20px;font-weight:400;color:var(--brown-dark);margin-bottom:12px;padding-bottom:6px;border-bottom:1px solid var(--gray-mid);margin-top:28px;}
+    .prev-h2:first-child{margin-top:0;}
+    .prev-list{list-style:none;margin-bottom:18px;}
+    .prev-list li{font-size:13px;color:var(--brown-mid);padding:4px 0;display:flex;gap:8px;}
+    .prev-list li::before{content:'·';color:var(--salmon);font-size:16px;line-height:1.2;flex-shrink:0;}
+    .prev-table{width:100%;border-collapse:collapse;font-size:12px;margin-bottom:20px;}
+    .prev-table th{background:var(--salmon-bg);padding:7px 10px;text-align:left;font-weight:600;letter-spacing:.06em;text-transform:uppercase;font-size:10px;color:var(--brown-mid);}
+    .prev-table td{padding:7px 10px;border-bottom:1px solid var(--gray-light);}
+    .fotos-export{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:24px;}
+    .fotos-export img{width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:3px;}
+    .prev-footer{background:var(--brown-dark);padding:18px 40px;font-family:'Cormorant Garamond',serif;font-size:15px;color:var(--salmon-light);text-align:center;letter-spacing:.06em;}
+  </style></head><body>${preview}</body></html>`);
+  win.document.close();
+  setTimeout(()=>{ win.print(); }, 1500);
 }
 
 init();
