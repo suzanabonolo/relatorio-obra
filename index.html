@@ -515,8 +515,16 @@ async function processarIA() {
       body: JSON.stringify({model:'claude-sonnet-4-6',max_tokens:1000,messages:[{role:'user',content:prompt}]})
     });
     const data = await resp.json();
+    console.log('API response:', JSON.stringify(data).substring(0,500));
     const raw = data.content?.[0]?.text||'{}';
-    const parsed = JSON.parse(raw.replace(/```json|```/g,'').trim());
+    console.log('Raw text:', raw.substring(0,300));
+    let parsed;
+    try {
+      parsed = JSON.parse(raw.replace(/```json|```/g,'').trim());
+    } catch(parseErr) {
+      console.error('JSON parse error:', parseErr, 'raw:', raw);
+      throw new Error('Resposta da IA não é JSON válido: '+parseErr.message);
+    }
     _realizacoes = parsed.realizacoes||[];
     _previstos = parsed.previstos||[];
     (parsed.etapas||[]).forEach(pe => {
@@ -526,7 +534,8 @@ async function processarIA() {
     renderEtapas();
     st.innerHTML = '<div class="info-box" style="margin-top:12px;">✓ IA preencheu as etapas. Revise e ajuste os percentuais.</div>';
   } catch(e) {
-    st.innerHTML = '<div class="alert-box" style="margin-top:12px;">⚠️ Erro ao processar. Preencha manualmente.</div>';
+    st.innerHTML = '<div class="alert-box" style="margin-top:12px;">⚠️ Erro: '+e.message+'. Preencha manualmente abaixo.</div>';
+    console.error('processarIA error:', e);
   }
 }
 
