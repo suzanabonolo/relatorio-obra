@@ -507,11 +507,11 @@ async function processarIA() {
   if(!texto) { alert('Cole ou grave o áudio primeiro.'); return; }
   const st = document.getElementById('iaStatus');
   st.innerHTML = '<div class="loading"><div class="spinner"></div> Processando com IA...</div>';
-  const prompt = 'Transcrição de obra:\n"""'+texto+'"""\n\nRetorne JSON minimalista, APENAS etapas mencionadas, sem comentários:\n{"e":[{"n":"etapa","s":"ok|pendente|alerta|semAlteracao","o":"obs curta","p":"proximo curto"}],"r":["realização"],"v":["previsto"]}\n\nonde s: ok=avançou,pendente=pendências,alerta=problema. Máximo 3 itens em r e v. Obs máximo 10 palavras.';
+  const prompt = 'Você é assistente de Suzana Bonolo Interiores. Analise esta transcrição de visita de obra e extraia informações por etapa/serviço.\n\nTranscrição:\n"""'+texto+'"""\n\nRetorne APENAS JSON válido sem texto extra:\n{"etapas":[{"nome":"nome da etapa","status":"ok|pendente|alerta|semAlteracao","obs":"observação curta","proximo":"próxima semana"}],"realizacoes":["item curto"],"previstos":["item curto"]}\n\nRegras:\n- ok=avançou normalmente, pendente=tem pendências, alerta=problema ou retrabalho, semAlteracao=sem movimento\n- Inclua apenas etapas mencionadas\n- Máximo 3 realizacoes e 3 previstos\n- Obs e proximo: máximo 12 palavras cada\n- Nomes de etapas em português';
   try {
     const resp = await fetch('/api/chat', {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({model:'claude-sonnet-4-6',max_tokens:800,messages:[{role:'user',content:prompt}]})
+      body: JSON.stringify({model:'claude-sonnet-4-6',max_tokens:1500,messages:[{role:'user',content:prompt}]})
     });
     const data = await resp.json();
     console.log('API response:', JSON.stringify(data).substring(0,500));
