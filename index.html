@@ -507,12 +507,11 @@ async function processarIA() {
   if(!texto) { alert('Cole ou grave o áudio primeiro.'); return; }
   const st = document.getElementById('iaStatus');
   st.innerHTML = '<div class="loading"><div class="spinner"></div> Processando com IA...</div>';
-  const nomes = etapas.filter(Boolean).map(e=>e.item).join(', ');
-  const prompt = 'Você é assistente de Suzana Bonolo Interiores.\n\nAnalise esta transcrição de visita de obra e extraia por etapa.\nEtapas: '+nomes+'\n\nTranscrição:\n"""'+texto+'"""\n\nRetorne APENAS JSON válido:\n{"etapas":[{"nome":"nome","status":"ok|pendente|alerta|semAlteracao","obs":"observação","proximo":"próxima semana"}],"realizacoes":["item"],"previstos":["item"]}\n\nok=avançou, pendente=pendências, alerta=problema/retrabalho, semAlteracao=sem movimento.';
+  const prompt = 'Analise esta transcrição de visita de obra e extraia APENAS as etapas mencionadas.\n\nTranscrição:\n"""'+texto+'"""\n\nRetorne APENAS JSON válido, sem texto extra:\n{"etapas":[{"nome":"nome da etapa mencionada","status":"ok|pendente|alerta|semAlteracao","obs":"o que foi feito em uma frase","proximo":"próxima semana em uma frase"}],"realizacoes":["frase curta"],"previstos":["frase curta"]}\n\nRegras:\n- ok=avançou, pendente=pendências, alerta=problema\n- Inclua APENAS etapas mencionadas no áudio\n- Máximo 2 realizacoes e 2 previstos\n- Obs e proximo: máximo 15 palavras cada';
   try {
     const resp = await fetch('/api/chat', {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({model:'claude-sonnet-4-6',max_tokens:1000,messages:[{role:'user',content:prompt}]})
+      body: JSON.stringify({model:'claude-sonnet-4-6',max_tokens:2000,messages:[{role:'user',content:prompt}]})
     });
     const data = await resp.json();
     console.log('API response:', JSON.stringify(data).substring(0,500));
