@@ -659,17 +659,18 @@ function delFoto(a,f){ambFotos[a].fotos[f]=null;document.getElementById(`fw-${a}
 // ── REVIEW ──
 function buildReview(){
   const et=etapas.filter(Boolean);
+  const etRev=et.filter(e=>e.tipo!=='Planejamento');
   const af=ambFotos.filter(Boolean);
   const totalF=af.reduce((s,a)=>s+(a.fotos.filter(Boolean).length),0);
   const sIcon={ok:'🟢',pendente:'🟡',alerta:'🔴',semAlteracao:'⚪',''  :'⚫'};
   let html=`<div class="review-section"><div class="review-label">Identificação</div>
     <div class="review-item"><span class="review-icon">👤</span><div class="review-text"><strong>${document.getElementById('cliente').value||'—'}</strong><span>Semana ${document.getElementById('semana').value||'—'} · ${document.getElementById('responsavel').value||'—'}</span></div></div>
-  </div><div class="review-section"><div class="review-label">Etapas (${et.length})</div>`;
-  etRev.forEach(e=>{html+=`<div class="review-item"><span class="review-icon">${sIcon[e.status]||'⚫'}</span><div class="review-text"><strong>${e.item}${e.refeicao?' ⚡':''}</strong><span>${e.obs||'Sem observações'}</span></div></div>`;});
+  </div><div class="review-section"><div class="review-label">Etapas (${etRev.length})</div>`;
+  etRev.forEach(e=>{html+=`<div class="review-item"><span class="review-icon">${sIcon[e.status]||'⚫'}</span><div class="review-text"><strong>${e.item}</strong><span>${e.obs||'Sem observações'}</span></div></div>`;});
   html+='</div>';
-  const sem=et.filter(e=>!e.status),semO=et.filter(e=>!e.obs);
-  if(sem.length||semO.length||totalF===0){
-    html+=`<div class="alert-box">⚠️ ${sem.length?sem.length+' etapa(s) sem status. ':''}${semO.length?semO.length+' etapa(s) sem observação. ':''}${totalF===0?'Nenhuma foto adicionada.':''}</div>`;
+  const semStatus=etRev.filter(e=>e.status);
+  if(totalF===0){
+    html+=`<div class="alert-box">⚠️ Nenhuma foto adicionada.</div>`;
   }
   html+=`<div class="review-section"><div class="review-label">Fotos</div><div class="review-item"><span class="review-icon">📸</span><div class="review-text"><strong>${totalF} foto(s)</strong><span>em ${af.length} ambiente(s)</span></div></div></div>`;
   document.getElementById('reviewContent').innerHTML=html;
