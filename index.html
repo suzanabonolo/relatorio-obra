@@ -268,27 +268,27 @@ const ETAPAS_BASE = [
   {tipo:"Civil",item:"Demolição",inicio:"23/06",fim:"27/06"},
   {tipo:"Civil",item:"Construção",inicio:"30/06",fim:"04/07"},
   {tipo:"Civil",item:"Reforço - Dry wall",inicio:"30/06",fim:"04/07"},
-  {tipo:"Civil",item:"Hidráulica",inicio:"14/07",fim:"16/07"},
-  {tipo:"Civil",item:"Impermeabilização de piso e paredes",inicio:"07/07",fim:"09/07"},
-  {tipo:"Civil",item:"Infra e condensadora ar condicionado",inicio:"14/07",fim:"16/07"},
-  {tipo:"Civil",item:"Elétrica",inicio:"",fim:""},
-  {tipo:"Civil",item:"Revestimentos de piso",inicio:"",fim:""},
-  {tipo:"Civil",item:"Revestimentos de parede",inicio:"",fim:""},
-  {tipo:"Civil",item:"Forros",inicio:"",fim:""},
-  {tipo:"Civil",item:"Selar teto e parede",inicio:"",fim:""},
-  {tipo:"Civil",item:"Pintura – primeira demão",inicio:"",fim:""},
-  {tipo:"Civil",item:"Instalação piso vinílico",inicio:"",fim:""},
-  {tipo:"Civil",item:"Instalação de luminárias técnicas",inicio:"",fim:""},
-  {tipo:"Civil",item:"Instalação de louças e metais",inicio:"",fim:""},
-  {tipo:"Civil",item:"Segunda demão de tinta",inicio:"",fim:""},
-  {tipo:"Civil",item:"Instalação de marcenaria",inicio:"",fim:""},
-  {tipo:"Marmoraria",item:"Medição marmoraria",inicio:"",fim:""},
-  {tipo:"Marmoraria",item:"Instalação de marmoraria",inicio:"",fim:""},
-  {tipo:"Marcenaria",item:"Medição marcenaria",inicio:"",fim:""},
-  {tipo:"Vidraçaria",item:"Medição vidraçaria",inicio:"",fim:""},
+  {tipo:"Civil",item:"Hidráulica",inicio:"14/07",fim:"25/07"},
+  {tipo:"Civil",item:"Impermeabilização de piso e paredes",inicio:"07/07",fim:"18/07"},
+  {tipo:"Civil",item:"Infra e condensadora ar condicionado",inicio:"14/07",fim:"25/07"},
+  {tipo:"Civil",item:"Elétrica",inicio:"14/07",fim:"08/08"},
+  {tipo:"Civil",item:"Revestimentos de piso",inicio:"04/08",fim:"15/08"},
+  {tipo:"Civil",item:"Revestimentos de parede",inicio:"21/07",fim:"08/08"},
+  {tipo:"Civil",item:"Forros",inicio:"28/07",fim:"08/08"},
+  {tipo:"Civil",item:"Selar teto e parede para amaciar",inicio:"11/08",fim:"22/08"},
+  {tipo:"Civil",item:"Pintura – primeira demão",inicio:"19/09",fim:"03/10"},
+  {tipo:"Civil",item:"Instalação piso vinílico",inicio:"04/09",fim:"19/09"},
+  {tipo:"Civil",item:"Instalação de luminárias técnicas",inicio:"19/09",fim:"10/10"},
+  {tipo:"Civil",item:"Instalação de louças e metais",inicio:"19/09",fim:"10/10"},
+  {tipo:"Civil",item:"Instalação de marcenaria",inicio:"11/08",fim:"05/09"},
+  {tipo:"Civil",item:"Segunda demão de tinta",inicio:"03/10",fim:"17/10"},
+  {tipo:"Marmoraria",item:"Medição marmoraria",inicio:"18/08",fim:"29/08"},
+  {tipo:"Marmoraria",item:"Instalação de marmoraria",inicio:"15/09",fim:"26/09"},
+  {tipo:"Marcenaria",item:"Medição marcenaria",inicio:"11/08",fim:"15/08"},
+  {tipo:"Vidraçaria",item:"Medição vidraçaria",inicio:"19/09",fim:"17/10"},
   {tipo:"Vidraçaria",item:"Instalação de box",inicio:"",fim:""},
-  {tipo:"Churrasqueira",item:"Medição da churrasqueira",inicio:"",fim:""},
-  {tipo:"Decor",item:"Medição de persianas",inicio:"",fim:""},
+  {tipo:"Churrasqueira",item:"Medição da churrasqueira",inicio:"15/09",fim:"19/09"},
+  {tipo:"Decor",item:"Medição de persianas",inicio:"11/08",fim:"15/08"},
   {tipo:"Decor",item:"Instalação de persianas",inicio:"",fim:""},
   {tipo:"Decor",item:"Limpeza pós obra",inicio:"",fim:""},
 ];
@@ -642,15 +642,38 @@ function removeAmbFoto(idx){document.getElementById(`af-${idx}`)?.remove();ambFo
 function handleFotos(idx,input){
   const grid=document.getElementById(`fg-${idx}`);
   Array.from(input.files).forEach(file=>{
-    const reader=new FileReader();
-    reader.onload=e=>{
+    // Convert any image (including HEIC) via canvas to jpeg
+    const url=URL.createObjectURL(file);
+    const img=new Image();
+    img.onload=()=>{
+      const canvas=document.createElement('canvas');
+      // cap at 1200px wide to keep file size reasonable
+      const maxW=1200;
+      const scale=img.width>maxW?maxW/img.width:1;
+      canvas.width=img.width*scale;
+      canvas.height=img.height*scale;
+      canvas.getContext('2d').drawImage(img,0,0,canvas.width,canvas.height);
+      const jpeg=canvas.toDataURL('image/jpeg',0.85);
+      URL.revokeObjectURL(url);
       const fi=ambFotos[idx].fotos.length;
-      ambFotos[idx].fotos.push(e.target.result);
+      ambFotos[idx].fotos.push(jpeg);
       const w=document.createElement('div');w.className='foto-wrap';w.id=`fw-${idx}-${fi}`;
-      w.innerHTML=`<img class="foto-thumb" src="${e.target.result}"><button class="foto-del" onclick="delFoto(${idx},${fi})">×</button>`;
+      w.innerHTML=`<img class="foto-thumb" src="${jpeg}"><button class="foto-del" onclick="delFoto(${idx},${fi})">×</button>`;
       grid.appendChild(w);
     };
-    reader.readAsDataURL(file);
+    img.onerror=()=>{
+      // fallback to FileReader if canvas fails
+      const reader=new FileReader();
+      reader.onload=e=>{
+        const fi=ambFotos[idx].fotos.length;
+        ambFotos[idx].fotos.push(e.target.result);
+        const w=document.createElement('div');w.className='foto-wrap';w.id=`fw-${idx}-${fi}`;
+        w.innerHTML=`<img class="foto-thumb" src="${e.target.result}"><button class="foto-del" onclick="delFoto(${idx},${fi})">×</button>`;
+        grid.appendChild(w);
+      };
+      reader.readAsDataURL(file);
+    };
+    img.src=url;
   });
 }
 
