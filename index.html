@@ -136,290 +136,7 @@ textarea{resize:vertical;min-height:72px;}
 
   <div class="save-bar">
     <span>💾 Carregar dados da semana anterior</span>
-    <label style="margin:0;text-transform:none;letter-spacing:0;font-size:12px;">
-      <input type="file" id="jsonInput" accept=".json" style="display:none" onchange="loadJSON(this)">
-      <span class="btn-primary" style="cursor:pointer;padding:8px 16px;" onclick="document.getElementById('jsonInput').click()">Importar .json</span>
-    </label>
-  </div>
-
-  <div class="card">
-    <div class="row-2">
-      <div><label>Cliente</label><input type="text" id="cliente" placeholder="Ex: Lídia e Douglas"></div>
-      <div><label>Semana de referência</label><input type="text" id="semana" placeholder="Ex: 23 a 29 jun"></div>
-    </div>
-    <div class="row-2">
-      <div><label>Cidade / Endereço</label><input type="text" id="cidade" placeholder="Ex: Alphaville – SP"></div>
-      <div><label>Responsável pelo relatório</label>
-        <select id="responsavel">
-          <option value="">Selecionar</option>
-          <option>Suzana Bonolo</option><option>Bruna Tadeu</option><option>Laiz Leones</option>
-        </select>
-      </div>
-    </div>
-  </div>
-
-  <div class="btn-row"><button class="btn-primary" onclick="goTo(1)">Próximo →</button></div>
-</div>
-</div>
-
-<!-- PAGE 1 – ÁUDIO + ETAPAS -->
-<div class="page" id="page1">
-<div class="container">
-  <div class="section-title">Áudio e Etapas</div>
-  <div class="section-sub">Grave ou envie o áudio da visita. A IA preenche as etapas automaticamente.</div>
-
-  <div class="card">
-    <div class="card-label">Padrão de áudio</div>
-    <div class="info-box">💬 <span><strong>Fale assim por etapa:</strong> "Demolição — avançou normalmente — concluíram a parede do quarto, falta banheiro social — próxima semana: regularização."</span></div>
-
-    <div class="audio-box">
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
-        <span style="font-size:22px;">🎙️</span>
-        <div><div style="font-size:13px;font-weight:600;">Gravar áudio direto</div><div style="font-size:11px;color:var(--brown-mid);">Funciona no celular</div></div>
-      </div>
-      <button class="btn-record" id="btnRecord" onclick="toggleRecord()">⏺ Gravar</button>
-      <span id="recordStatus" style="font-size:12px;color:var(--brown-light);margin-left:12px;"></span>
-    </div>
-
-    <div style="text-align:center;font-size:11px;color:var(--brown-light);letter-spacing:.08em;text-transform:uppercase;margin:12px 0;">— ou upload de áudio —</div>
-    <div class="upload-zone" onclick="document.getElementById('audioInput').click()" style="margin-bottom:6px;">
-      <input type="file" id="audioInput" accept="audio/*,.ogg,.opus,.m4a,.mp3,.wav,.webm" onchange="uploadAudio(this)">
-      <div style="font-size:24px;margin-bottom:6px;">🎵</div>
-      <div style="font-size:12px;color:var(--brown-mid);"><strong style="color:var(--salmon);">Enviar áudio</strong><br>MP3, M4A, OGG, OPUS, WAV</div>
-    </div>
-    <div id="audioFileInfo" style="font-size:12px;color:var(--green-ok);padding:6px 0 10px;display:none;">📎 <span id="audioFileName"></span></div>
-
-    <div style="text-align:center;font-size:11px;color:var(--brown-light);letter-spacing:.08em;text-transform:uppercase;margin:12px 0;">— ou colar texto —</div>
-    <label>Transcrição / anotações da visita</label>
-    <textarea id="transcricao" placeholder="Cole a transcrição do áudio ou suas anotações..." style="min-height:90px;"></textarea>
-    <button class="btn-primary" onclick="processarIA()" style="width:100%;">✨ Processar com IA → preencher etapas</button>
-    <div id="iaStatus"></div>
-  </div>
-
-  <div class="section-title" style="margin-top:24px;">Etapas da Obra</div>
-  <div class="section-sub">Atualize status e % de cada etapa. Etapas já carregadas do cronograma.</div>
-  <div id="etapasList"></div>
-  <button class="btn-add" onclick="addEtapaManual()">+ Adicionar etapa não prevista</button>
-
-  <div class="btn-row">
-    <button class="btn-secondary" onclick="goTo(0)">← Voltar</button>
-    <button class="btn-primary" onclick="goTo(2)">Próximo →</button>
-  </div>
-</div>
-</div>
-
-<!-- PAGE 2 – FOTOS -->
-<div class="page" id="page2">
-<div class="container">
-  <div class="section-title">Fotos da Semana</div>
-  <div class="section-sub">Organize por ambiente. No relatório aparecem todas agrupadas no final.</div>
-  <div id="ambFotosList"></div>
-  <button class="btn-add" onclick="addAmbFoto('')">+ Adicionar ambiente</button>
-  <div class="btn-row">
-    <button class="btn-secondary" onclick="goTo(1)">← Voltar</button>
-    <button class="btn-primary" onclick="buildReview();goTo(3)">Revisar →</button>
-  </div>
-</div>
-</div>
-
-<!-- PAGE 3 – REVISÃO -->
-<div class="page" id="page3">
-<div class="container">
-  <div class="section-title">Revisão</div>
-  <div class="section-sub">Etapa da Suzana. Confira antes de gerar.</div>
-  <div id="reviewContent"></div>
-  <div class="btn-row">
-    <button class="btn-secondary" onclick="goTo(2)">← Corrigir</button>
-    <button class="btn-primary" onclick="buildExport();goTo(4)">Aprovar e Gerar →</button>
-  </div>
-</div>
-</div>
-
-<!-- PAGE 4 – EXPORTAR -->
-<div class="page" id="page4">
-<div class="container">
-  <div class="print-hint">🖨️ PDF: <strong>Ctrl+P</strong> (ou Cmd+P) → Salvar como PDF</div>
-  <div class="save-bar">
-    <span>💾 Salve o .json no OneDrive para usar semana que vem</span>
-    <button class="btn-primary" style="padding:8px 16px;" onclick="exportJSON()">Baixar .json</button>
-  </div>
-  <div id="exportPreview">
-    <div class="prev-cover">
-      <div class="prev-cover-title" id="expCliente">—</div>
-      <div class="prev-cover-sub" id="expSemana">—</div>
-    </div>
-    <div class="prev-body" id="expBody"></div>
-    <div class="prev-footer">Suzana Bonolo · Interiores</div>
-  </div>
-  <div class="btn-row" style="margin-top:18px;">
-    <button class="btn-secondary" onclick="goTo(3)">← Voltar</button>
-    <button class="btn-primary" onclick="imprimirRelatorio()">🖨️ Salvar PDF</button>
-  </div>
-</div>
-</div>
-
-<script>
-// ── CRONOGRAMA PAINEIRA 74 (pré-carregado) ──
-const ETAPAS_BASE = [
-  {tipo:"Planejamento",item:"Elaboração do macrocronograma de obras",inicio:"",fim:""},
-  {tipo:"Planejamento",item:"Cotações e elaboração de planilha orçamentária",inicio:"",fim:""},
-  {tipo:"Planejamento",item:"Aprovação do condomínio",inicio:"",fim:""},
-  {tipo:"Planejamento",item:"Aprovação de orçamentos",inicio:"",fim:""},
-  {tipo:"Civil",item:"Demolição",inicio:"23/06",fim:"27/06"},
-  {tipo:"Civil",item:"Construção",inicio:"30/06",fim:"04/07"},
-  {tipo:"Civil",item:"Reforço - Dry wall",inicio:"30/06",fim:"04/07"},
-  {tipo:"Civil",item:"Hidráulica",inicio:"14/07",fim:"25/07"},
-  {tipo:"Civil",item:"Impermeabilização de piso e paredes",inicio:"07/07",fim:"18/07"},
-  {tipo:"Civil",item:"Infra e condensadora ar condicionado",inicio:"14/07",fim:"25/07"},
-  {tipo:"Civil",item:"Elétrica",inicio:"14/07",fim:"08/08"},
-  {tipo:"Civil",item:"Revestimentos de piso",inicio:"04/08",fim:"15/08"},
-  {tipo:"Civil",item:"Revestimentos de parede",inicio:"21/07",fim:"08/08"},
-  {tipo:"Civil",item:"Forros",inicio:"28/07",fim:"08/08"},
-  {tipo:"Civil",item:"Selar teto e parede para amaciar",inicio:"11/08",fim:"22/08"},
-  {tipo:"Civil",item:"Pintura – primeira demão",inicio:"19/09",fim:"03/10"},
-  {tipo:"Civil",item:"Instalação piso vinílico",inicio:"04/09",fim:"19/09"},
-  {tipo:"Civil",item:"Instalação de luminárias técnicas",inicio:"19/09",fim:"10/10"},
-  {tipo:"Civil",item:"Instalação de louças e metais",inicio:"19/09",fim:"10/10"},
-  {tipo:"Civil",item:"Instalação de marcenaria",inicio:"11/08",fim:"05/09"},
-  {tipo:"Civil",item:"Segunda demão de tinta",inicio:"03/10",fim:"17/10"},
-  {tipo:"Marmoraria",item:"Medição marmoraria",inicio:"18/08",fim:"29/08"},
-  {tipo:"Marmoraria",item:"Instalação de marmoraria",inicio:"15/09",fim:"26/09"},
-  {tipo:"Marcenaria",item:"Medição marcenaria",inicio:"11/08",fim:"15/08"},
-  {tipo:"Vidraçaria",item:"Medição vidraçaria",inicio:"19/09",fim:"17/10"},
-  {tipo:"Vidraçaria",item:"Instalação de box",inicio:"",fim:""},
-  {tipo:"Churrasqueira",item:"Medição da churrasqueira",inicio:"15/09",fim:"19/09"},
-  {tipo:"Decor",item:"Medição de persianas",inicio:"11/08",fim:"15/08"},
-  {tipo:"Decor",item:"Instalação de persianas",inicio:"",fim:""},
-  {tipo:"Decor",item:"Limpeza pós obra",inicio:"",fim:""},
-];
-
-const AMBIENTES_BASE = ["Living","Cozinha","Área de Serviço","Suite Master","Banho Master","Banho Social","Lavabo","Varanda","Escritório"];
-
-// ── STATE ──
-let etapas = [];
-let ambFotos = [];
-let _realizacoes = [];
-let _previstos = [];
-let mediaRecorder = null, audioChunks = [], isRecording = false;
-
-// ── INIT ──
-function init() {
-  etapas = ETAPAS_BASE.map(e => ({...e, status:'', obs:'', proximo:'', pct:0, refeicao:false}));
-  renderEtapas();
-  AMBIENTES_BASE.forEach(n => addAmbFoto(n));
-  // pre-fill obra info for Paineira 74
-  document.getElementById('cliente').value = 'Lídia e Douglas';
-  document.getElementById('cidade').value = 'Alphaville – Santana de Parnaíba / SP';
-  document.getElementById('obraLabel').textContent = 'Paineira 74';
-}
-
-// ── NAV ──
-function goTo(n){
-  document.querySelectorAll('.page').forEach((p,i)=>p.classList.toggle('active',i===n));
-  document.querySelectorAll('.step').forEach((s,i)=>{s.classList.remove('active','done');if(i===n)s.classList.add('active');else if(i<n)s.classList.add('done');});
-  window.scrollTo(0,0);
-}
-
-// ── JSON SAVE/LOAD ──
-function exportJSON(){
-  const state = {
-    cliente: document.getElementById('cliente').value,
-    semana: document.getElementById('semana').value,
-    cidade: document.getElementById('cidade').value,
-    responsavel: document.getElementById('responsavel').value,
-    etapas: etapas.map(e=>({tipo:e.tipo,item:e.item,inicio:e.inicio,fim:e.fim,pct:e.pct,refeicao:e.refeicao})),
-    obraId: 'paineira74'
-  };
-  const blob = new Blob([JSON.stringify(state,null,2)],{type:'application/json'});
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  const semana = document.getElementById('semana').value.replace(/\s/g,'_') || 'semana';
-  a.download = `paineira74_${semana}.json`;
-  a.click();
-}
-
-function loadJSON(input){
-  const file = input.files[0];
-  if(!file) return;
-  const reader = new FileReader();
-  reader.onload = e => {
-    try {
-      const s = JSON.parse(e.target.result);
-      if(s.cliente) document.getElementById('cliente').value = s.cliente;
-      if(s.cidade) document.getElementById('cidade').value = s.cidade;
-      if(s.responsavel) document.getElementById('responsavel').value = s.responsavel;
-      // load etapas preserving %
-      if(s.etapas && s.etapas.length){
-        etapas = s.etapas.map(e=>({...e, status:'', obs:'', proximo:''}));
-      }
-      renderEtapas();
-      alert(`✓ Dados carregados! Semana anterior: ${s.semana||'—'}. Atualize a semana de referência e comece.`);
-    } catch(err){ alert('Erro ao carregar o arquivo: '+err.message); }
-  };
-  reader.readAsText(file);
-}
-
-// ── ETAPAS ──
-function renderEtapas(){
-  const list = document.getElementById('etapasList');
-  list.innerHTML = '';
-  // group by tipo
-  const grupos = {};
-  etapas.forEach((e,i)=>{
-    if(!e) return;
-    if(!grupos[e.tipo]) grupos[e.tipo]=[];
-    grupos[e.tipo].push({...e,idx:i});
-  });
-  // show active etapas + first 3 upcoming (no status, no pct)
-  let upcomingCount=0;
-  Object.keys(grupos).forEach(tipo=>{
-    if(tipo==='Planejamento') return;
-    const visibles=grupos[tipo].filter(e=>{
-      if(e.status||e.obs||e.pct>0) return true;
-      if(upcomingCount<3){upcomingCount++;return true;}
-      return false;
-    });
-    if(!visibles.length) return;
-    const gh = document.createElement('div');
-    gh.className='grupo-header';
-    gh.textContent=tipo;
-    list.appendChild(gh);
-    visibles.forEach(e=>renderEtapaBlock(e.idx));
-  });
-  // add "show all" button
-  const showAll=document.createElement('button');
-  showAll.className='btn-add';
-  showAll.textContent='↓ Ver todas as etapas futuras';
-  showAll.onclick=()=>{showAll.remove();renderEtapasAll();};
-  list.appendChild(showAll);
-}
-
-function renderEtapasAll(){
-  const list=document.getElementById('etapasList');
-  etapas.forEach((e,idx)=>{
-    if(!e||e.tipo==='Planejamento') return;
-    if(!document.getElementById(`etapa-${idx}`)){
-      // find or create group header
-      renderEtapaBlock(idx);
-    }
-  });
-}
-
-function renderEtapaBlock(idx){
-  const e = etapas[idx];
-  if(!e) return;
-  const list = document.getElementById('etapasList');
-  const div = document.createElement('div');
-  div.className='etapa-block';
-  div.id=`etapa-${idx}`;
-  const sc = s => e.status===s?'sel':'';
-  div.innerHTML=`
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap;">
-      <input type="text" value="${e.item}" style="margin-bottom:0;font-size:13px;font-weight:600;flex:1;min-width:160px;" oninput="etapas[${idx}].item=this.value">
-      <span class="etapa-tipo-badge${e.refeicao?' etapa-refeicao-badge':''}">${e.refeicao?'⚡ Refeição':e.tipo}</span>
-      <label style="display:flex;align-items:center;gap:4px;font-size:11px;margin:0;cursor:pointer;text-transform:none;letter-spacing:0;">
-        <input type="checkbox" ${e.refeicao?'checked':''} onchange="etapas[${idx}].refeicao=this.checked;refreshEtapa(${idx})"> Refeição
-      </label>
+    
       <button class="btn-remove" onclick="removeEtapa(${idx})">×</button>
     </div>
     <div class="status-row">
@@ -774,8 +491,7 @@ function buildExport(){
     <table class="prev-table"><thead><tr><th>Etapa</th><th>Tipo</th><th>Início</th><th>Fim</th><th>%</th></tr></thead><tbody>`;
     etCrono.forEach(e=>{
       const c=e.pct===100?'var(--green-ok)':e.pct>0?'var(--amber)':'var(--brown-light)';
-      const rowStyle=e.pct===0&&!e.status?'opacity:0.5;':'';
-      body+=`<tr style="${rowStyle}"><td>${e.item}</td><td style="color:var(--brown-light);">${e.tipo}</td><td>${e.inicio||'—'}</td><td>${e.fim||'—'}</td><td style="color:${c};font-weight:700;">${e.pct}%</td></tr>`;
+      body+=`<tr><td>${e.item}</td><td style="color:var(--brown-light);">${e.tipo}</td><td>${e.inicio||'—'}</td><td>${e.fim||'—'}</td><td style="color:${c};font-weight:700;">${e.pct}%</td></tr>`;
     });
     body+='</tbody></table>';
   }
@@ -790,34 +506,53 @@ function buildExport(){
 }
 
 function imprimirRelatorio(){
-  // open print in new window with full content rendered
-  const preview=document.getElementById('exportPreview').innerHTML;
-  const win=window.open('','_blank');
-  win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
-  <title>Relatório de Obra - Suzana Bonolo</title>
-  <style>
-    @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;500&family=Inter:wght@300;400;500;600&display=swap');
-    :root{--salmon:#E8A090;--salmon-light:#F2C4B8;--salmon-bg:#FBF0ED;--brown-dark:#3D2B2B;--brown-mid:#6B4A4A;--brown-light:#C4A09A;--white:#FFFFFF;--off-white:#FAF8F7;--gray-light:#F0EDEC;--gray-mid:#D5CECE;--green-ok:#5C8A6E;--amber:#C88A3A;--red-alert:#C05050;}
-    *{box-sizing:border-box;margin:0;padding:0;}
-    body{font-family:'Inter',sans-serif;background:white;}
-    .prev-cover{background:var(--salmon);padding:44px 40px;text-align:center;}
-    .prev-cover-title{font-family:'Cormorant Garamond',serif;font-size:34px;font-weight:300;color:var(--brown-dark);margin-bottom:6px;}
-    .prev-cover-sub{font-size:13px;color:var(--brown-dark);opacity:.75;}
-    .prev-body{padding:32px 40px;}
-    .prev-h2{font-family:'Cormorant Garamond',serif;font-size:20px;font-weight:400;color:var(--brown-dark);margin-bottom:12px;padding-bottom:6px;border-bottom:1px solid var(--gray-mid);margin-top:28px;}
-    .prev-h2:first-child{margin-top:0;}
-    .prev-list{list-style:none;margin-bottom:18px;}
-    .prev-list li{font-size:13px;color:var(--brown-mid);padding:4px 0;display:flex;gap:8px;}
-    .prev-list li::before{content:'·';color:var(--salmon);font-size:16px;line-height:1.2;flex-shrink:0;}
-    .prev-table{width:100%;border-collapse:collapse;font-size:12px;margin-bottom:20px;}
-    .prev-table th{background:var(--salmon-bg);padding:7px 10px;text-align:left;font-weight:600;letter-spacing:.06em;text-transform:uppercase;font-size:10px;color:var(--brown-mid);}
-    .prev-table td{padding:7px 10px;border-bottom:1px solid var(--gray-light);}
-    .fotos-export{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:24px;}
-    .fotos-export img{width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:3px;}
-    .prev-footer{background:var(--brown-dark);padding:18px 40px;font-family:'Cormorant Garamond',serif;font-size:15px;color:var(--salmon-light);text-align:center;letter-spacing:.06em;}
-  </style></head><body>${preview}</body></html>`);
-  win.document.close();
-  setTimeout(()=>{ win.print(); }, 1500);
+  // Ensure all images are loaded before printing
+  const preview=document.getElementById('exportPreview');
+  const imgs=preview.querySelectorAll('img');
+  
+  // Convert any remaining non-data URLs to data URLs via canvas
+  const promises=Array.from(imgs).map(img=>{
+    if(img.src.startsWith('data:')) return Promise.resolve();
+    return new Promise(res=>{
+      const canvas=document.createElement('canvas');
+      canvas.width=img.naturalWidth||img.width||300;
+      canvas.height=img.naturalHeight||img.height||200;
+      canvas.getContext('2d').drawImage(img,0,0);
+      img.src=canvas.toDataURL('image/jpeg',0.85);
+      res();
+    });
+  });
+
+  Promise.all(promises).then(()=>{
+    const previewHTML=preview.innerHTML;
+    const win=window.open('','_blank');
+    win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
+    <title>Relatório de Obra - Suzana Bonolo</title>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;500&family=Inter:wght@300;400;500;600&display=swap');
+      :root{--salmon:#E8A090;--salmon-light:#F2C4B8;--salmon-bg:#FBF0ED;--brown-dark:#3D2B2B;--brown-mid:#6B4A4A;--brown-light:#C4A09A;--white:#FFFFFF;--off-white:#FAF8F7;--gray-light:#F0EDEC;--gray-mid:#D5CECE;--green-ok:#5C8A6E;--amber:#C88A3A;--red-alert:#C05050;}
+      *{box-sizing:border-box;margin:0;padding:0;}
+      body{font-family:'Inter',sans-serif;background:white;}
+      .prev-cover{background:var(--salmon);padding:44px 40px;text-align:center;print-color-adjust:exact;-webkit-print-color-adjust:exact;}
+      .prev-cover-title{font-family:'Cormorant Garamond',serif;font-size:34px;font-weight:300;color:var(--brown-dark);margin-bottom:6px;}
+      .prev-cover-sub{font-size:13px;color:var(--brown-dark);opacity:.75;}
+      .prev-body{padding:32px 40px;}
+      .prev-h2{font-family:'Cormorant Garamond',serif;font-size:20px;font-weight:400;color:var(--brown-dark);margin-bottom:12px;padding-bottom:6px;border-bottom:1px solid var(--gray-mid);margin-top:28px;}
+      .prev-h2:first-child{margin-top:0;}
+      .prev-list{list-style:none;margin-bottom:18px;}
+      .prev-list li{font-size:13px;color:var(--brown-mid);padding:4px 0;display:flex;gap:8px;}
+      .prev-list li::before{content:'·';color:var(--salmon);font-size:16px;line-height:1.2;flex-shrink:0;}
+      .prev-table{width:100%;border-collapse:collapse;font-size:12px;margin-bottom:20px;}
+      .prev-table th{background:var(--salmon-bg);padding:7px 10px;text-align:left;font-weight:600;letter-spacing:.06em;text-transform:uppercase;font-size:10px;color:var(--brown-mid);print-color-adjust:exact;-webkit-print-color-adjust:exact;}
+      .prev-table td{padding:7px 10px;border-bottom:1px solid var(--gray-light);}
+      .fotos-export{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:24px;}
+      .fotos-export img{width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:3px;}
+      .prev-footer{background:var(--brown-dark);padding:18px 40px;font-family:'Cormorant Garamond',serif;font-size:15px;color:var(--salmon-light);text-align:center;letter-spacing:.06em;print-color-adjust:exact;-webkit-print-color-adjust:exact;}
+    </style></head><body>${previewHTML}</body></html>`);
+    win.document.close();
+    // wait for fonts and images
+    setTimeout(()=>{ win.focus(); win.print(); }, 2000);
+  });
 }
 
 init();
