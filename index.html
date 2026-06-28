@@ -37,7 +37,13 @@ textarea{resize:vertical;min-height:72px;}
 .btn-record{background:var(--red-alert);color:white;border:none;padding:10px 20px;border-radius:3px;font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;cursor:pointer;}
 .btn-record.recording{animation:pulse 1s infinite;}
 @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.6;}}
-.etapa-block{background:var(--white);border:1px solid var(--gray-mid);border-radius:4px;padding:18px;margin-bottom:10px;}
+.etapa-block{background:var(--white);border:1px solid var(--gray-mid);border-radius:4px;margin-bottom:6px;overflow:hidden;}
+.etapa-header-row{display:flex;align-items:center;gap:8px;padding:12px 16px;cursor:pointer;user-select:none;background:var(--white);}
+.etapa-header-row:hover{background:var(--gray-light);}
+.etapa-body{padding:0 16px 16px;display:none;}
+.etapa-body.open{display:block;}
+.etapa-chevron{font-size:11px;color:var(--brown-light);margin-left:auto;transition:transform .2s;}
+.etapa-chevron.open{transform:rotate(180deg);}
 .etapa-tipo-badge{font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;padding:2px 8px;border-radius:2px;background:var(--salmon-bg);color:var(--salmon);}
 .etapa-refeicao-badge{background:#FAEAEA;color:var(--red-alert);}
 .status-row{display:flex;flex-wrap:wrap;gap:7px;margin:12px 0;}
@@ -365,6 +371,7 @@ function renderEtapas(){
     grupos[e.tipo].push({...e,idx:i});
   });
   Object.keys(grupos).forEach(tipo=>{
+    if(tipo==='Planejamento') return; // ocultar na interface de edição
     const gh = document.createElement('div');
     gh.className='grupo-header';
     gh.textContent=tipo;
@@ -656,33 +663,57 @@ function buildExport(){
   const sl={ok:'Avançou',pendente:'Pendências',alerta:'Problema / Ajuste',semAlteracao:'Sem alterações',''  :'—'};
   let body='';
   if(_realizacoes.length){body+=`<h2 class="prev-h2">Realizações da Semana</h2><ul class="prev-list">`;_realizacoes.forEach(r=>body+=`<li>${r}</li>`);body+='</ul>';}
-  body+=`<h2 class="prev-h2">Acompanhamento de Etapas</h2>`;
-  // group by tipo
-  const grupos={};
-  et.forEach(e=>{if(!grupos[e.tipo])grupos[e.tipo]=[];grupos[e.tipo].push(e);});
-  Object.keys(grupos).forEach(tipo=>{
-    body+=`<p style="font-size:10px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--salmon);margin:16px 0 8px;">${tipo}</p>`;
-    grupos[tipo].forEach(e=>{
-      const c=sc[e.status];
-      body+=`<div style="margin-bottom:14px;padding:12px;background:var(--off-white);border-radius:3px;border-left:3px solid ${c};">
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
-          <strong style="font-size:13px;">${e.item}${e.refeicao?' <span style="font-size:10px;background:#FAEAEA;color:var(--red-alert);padding:1px 6px;border-radius:2px;">REFEIÇÃO</span>':''}</strong>
-          <span style="font-size:10px;font-weight:600;padding:2px 7px;border-radius:2px;background:${c}20;color:${c};">${sl[e.status]}</span>
-          ${e.pct!==undefined?`<span style="font-size:11px;font-weight:700;color:${c};margin-left:auto;">${e.pct}%</span>`:''}
-        </div>
-        ${e.obs?`<div style="font-size:12px;color:var(--brown-mid);margin-bottom:4px;">${e.obs}</div>`:''}
-        ${e.proximo?`<div style="font-size:11px;color:var(--brown-light);"><strong>Próxima semana:</strong> ${e.proximo}</div>`:''}
-      </div>`;
+  // etapas ativas = tem status ou obs (exclui Planejamento e futuras sem movimento)
+  const etAtivas=et.filter(e=>e.tipo!=='Planejamento'&&(e.status||e.obs));
+  const etFuturas=et.filter(e=>e.tipo!=='Planejamento'&&!e.status&&!e.obs);
+
+  if(etAtivas.length){
+    body+=`<h2 class="prev-h2">Acompanhamento de Etapas</h2>`;
+    const grupos={};
+    etAtivas.forEach(e=>{if(!grupos[e.tipo])grupos[e.tipo]=[];grupos[e.tipo].push(e);});
+    Object.keys(grupos).forEach(tipo=>{
+      body+=`<p style="font-size:10px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--salmon);margin:16px 0 8px;">${tipo}</p>`;
+      grupos[tipo].forEach(e=>{
+        const c=sc[e.status]||'var(--brown-light)';
+        body+=`<div style="margin-bottom:12px;padding:12px;background:var(--off-white);border-radius:3px;border-left:3px solid ${c};">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+            <strong style="font-size:13px;">${e.item}${e.refeicao?' <span style="font-size:10px;background:#FAEAEA;color:var(--red-alert);padding:1px 6px;border-radius:2px;">REFEIÇÃO</span>':''}</strong>
+            ${e.status?`<span style="font-size:10px;font-weight:600;padding:2px 7px;border-radius:2px;background:${c}20;color:${c};">${sl[e.status]}</span>`:''}
+            ${e.pct>0?`<span style="font-size:11px;font-weight:700;color:${c};margin-left:auto;">${e.pct}%</span>`:''}
+          </div>
+          ${e.obs?`<div style="font-size:12px;color:var(--brown-mid);margin-bottom:4px;">${e.obs}</div>`:''}
+          ${e.proximo?`<div style="font-size:11px;color:var(--brown-light);"><strong>Próxima semana:</strong> ${e.proximo}</div>`:''}
+        </div>`;
+      });
     });
-  });
+  }
+
   if(_previstos.length){body+=`<h2 class="prev-h2">Previsto — Próximas Semanas</h2><ul class="prev-list">`;_previstos.forEach(p=>body+=`<li>${p}</li>`);body+='</ul>';}
-  // cronograma table
-  const etComPct=et.filter(e=>e.pct>0||e.status);
-  if(etComPct.length){
-    body+=`<h2 class="prev-h2">Planejamento</h2><table class="prev-table"><thead><tr><th>Etapa</th><th>Tipo</th><th>Início</th><th>Fim</th><th>%</th></tr></thead><tbody>`;
-    etComPct.forEach(e=>{
-      const c=e.pct===100?'var(--green-ok)':e.pct>=70?'var(--amber)':'var(--brown-mid)';
-      body+=`<tr><td>${e.item}</td><td style="color:var(--brown-light);">${e.tipo}</td><td>${e.inicio||'—'}</td><td>${e.fim||'—'}</td><td style="color:${c};font-weight:700;">${e.pct}%</td></tr>`;
+
+  // cronograma visual resumido
+  const etCrono=et.filter(e=>e.tipo!=='Planejamento');
+  if(etCrono.length){
+    const total=etCrono.length;
+    const concluidas=etCrono.filter(e=>e.pct===100).length;
+    const emAndamento=etCrono.filter(e=>e.pct>0&&e.pct<100).length;
+    const pctGeral=Math.round(etCrono.reduce((s,e)=>s+(e.pct||0),0)/total);
+    body+=`<h2 class="prev-h2">Visão Geral do Cronograma</h2>
+    <div style="background:var(--off-white);border-radius:4px;padding:16px;margin-bottom:16px;">
+      <div style="display:flex;gap:20px;margin-bottom:12px;font-size:12px;">
+        <span><strong style="color:var(--green-ok);">${concluidas}</strong> concluídas</span>
+        <span><strong style="color:var(--amber);">${emAndamento}</strong> em andamento</span>
+        <span><strong style="color:var(--brown-light);">${total-concluidas-emAndamento}</strong> futuras</span>
+        <span style="margin-left:auto;"><strong>${pctGeral}%</strong> concluído</span>
+      </div>
+      <div style="height:8px;background:var(--gray-mid);border-radius:4px;overflow:hidden;">
+        <div style="height:100%;width:${pctGeral}%;background:var(--salmon);border-radius:4px;"></div>
+      </div>
+    </div>
+    <table class="prev-table"><thead><tr><th>Etapa</th><th>Tipo</th><th>Início</th><th>Fim</th><th>%</th></tr></thead><tbody>`;
+    etCrono.forEach(e=>{
+      const c=e.pct===100?'var(--green-ok)':e.pct>0?'var(--amber)':'var(--brown-light)';
+      const rowStyle=e.pct===0&&!e.status?'opacity:0.5;':'';
+      body+=`<tr style="${rowStyle}"><td>${e.item}</td><td style="color:var(--brown-light);">${e.tipo}</td><td>${e.inicio||'—'}</td><td>${e.fim||'—'}</td><td style="color:${c};font-weight:700;">${e.pct}%</td></tr>`;
     });
     body+='</tbody></table>';
   }
