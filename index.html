@@ -303,7 +303,7 @@ textarea{resize:vertical;min-height:72px;}
     <button class="btn-add" onclick="addItemLista('imprevistos')">+ Adicionar imprevisto</button>
   </div>
   <div class="card">
-    <div class="card-label" style="color:var(--brown-light);">📝 Observações de canteiro</div>
+    <div class="card-label" style="color:var(--brown-light);">📝 Observações</div>
     <div id="listObservacoes"></div>
     <button class="btn-add" onclick="addItemLista('observacoes')">+ Adicionar observação</button>
   </div>
@@ -1079,7 +1079,7 @@ function buildReview() {
   html += secLista('Pendências','🟡',pend);
   html += secLista('Imprevistos','🔴',impr);
   html += secLista('Previsto próximas semanas','➡️',prev);
-  html += secLista('Observações de canteiro','📝',obsv);
+  html += secLista('Observações','📝',obsv);
 
   if(totalF===0) html += '<div class="alert-box">⚠️ Nenhuma foto adicionada.</div>';
   html += '<div class="review-section"><div class="review-label">Fotos</div><div class="review-item"><span class="review-icon">📸</span><div class="review-text"><strong>'+totalF+' foto(s)</strong><span>em '+af.length+' ambiente(s)</span></div></div></div>';
@@ -1147,7 +1147,7 @@ function buildExport() {
     body += listaExp(prevExp, 'var(--salmon)');
   }
 
-  if(obsvExp.length) { body += h2exp('Observações de Canteiro'); body += listaExp(obsvExp, 'var(--brown-light)'); }
+  if(obsvExp.length) { body += h2exp('Observações'); body += listaExp(obsvExp, 'var(--brown-light)'); }
 
   const total = et.length;
   const conc = et.filter(e=>e.pct===100).length;
@@ -1181,8 +1181,8 @@ function buildExport() {
     body += h2exp('Fotos da Semana');
     ambComFotos.forEach(a => {
       body += '<p style="font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--salmon);margin:16px 0 8px;">'+(a.nome||'Ambiente')+'</p>';
-      body += '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px;">';
-      a.fotos.filter(Boolean).forEach(src => body += '<img src="'+src+'" style="width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:3px;">');
+      body += '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px;align-items:start;">';
+      a.fotos.filter(Boolean).forEach(src => body += '<img src="'+src+'" style="width:100%;height:auto;border-radius:3px;display:block;">');
       body += '</div>';
     });
   }
