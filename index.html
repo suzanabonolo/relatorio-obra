@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Suzana Bonolo · Acompanhamento de Obra</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;500&family=Inter:wght@300;400;500;600&display=swap');
 :root{
@@ -22,6 +23,19 @@ body{font-family:'Inter',sans-serif;background:var(--off-white);color:var(--brow
 .header-sub{font-size:10px;color:var(--brown-light);letter-spacing:.18em;text-transform:uppercase;margin-top:2px;}
 .header-badge{background:var(--salmon);color:var(--brown-dark);font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;padding:6px 14px;border-radius:2px;cursor:pointer;}
 .header-badge:hover{background:var(--salmon-light);}
+.header-right{display:flex;align-items:center;gap:16px;}
+.header-user{text-align:right;display:none;}
+.header-user-name{font-size:12px;color:var(--salmon-light);}
+.header-user-sair{font-size:10px;color:var(--brown-light);letter-spacing:.1em;text-transform:uppercase;cursor:pointer;}
+.header-user-sair:hover{color:var(--salmon-light);}
+
+/* ── LOGIN ── */
+#pageLogin{display:none;}
+#pageLogin.active{display:flex;min-height:calc(100vh - 80px);align-items:center;justify-content:center;padding:20px;}
+.login-card{background:var(--white);border-radius:6px;box-shadow:var(--shadow);padding:36px;width:min(400px,92vw);}
+.login-brand{font-family:'Cormorant Garamond',serif;font-size:26px;font-weight:300;text-align:center;color:var(--brown-dark);margin-bottom:2px;}
+.login-sub{font-size:10px;color:var(--brown-light);letter-spacing:.18em;text-transform:uppercase;text-align:center;margin-bottom:26px;}
+.login-erro{background:#FAEAEA;border:1px solid #E8B8B8;color:var(--red-alert);border-radius:3px;padding:10px 14px;font-size:12px;margin-bottom:12px;display:none;}
 
 /* ── STEPS ── */
 .steps{background:var(--white);border-bottom:1px solid var(--gray-mid);padding:0 32px;display:flex;overflow-x:auto;}
@@ -39,7 +53,7 @@ body{font-family:'Inter',sans-serif;background:var(--off-white);color:var(--brow
 
 /* ── FORMS ── */
 label{display:block;font-size:11px;font-weight:500;color:var(--brown-mid);letter-spacing:.06em;text-transform:uppercase;margin-bottom:5px;}
-input[type=text],input[type=number],select,textarea{width:100%;padding:9px 13px;border:1px solid var(--gray-mid);border-radius:3px;font-family:'Inter',sans-serif;font-size:13px;color:var(--brown-dark);background:var(--off-white);margin-bottom:14px;transition:border-color .2s;outline:none;}
+input[type=text],input[type=number],input[type=email],input[type=password],select,textarea{width:100%;padding:9px 13px;border:1px solid var(--gray-mid);border-radius:3px;font-family:'Inter',sans-serif;font-size:13px;color:var(--brown-dark);background:var(--off-white);margin-bottom:14px;transition:border-color .2s;outline:none;}
 input:focus,select:focus,textarea:focus{border-color:var(--salmon);background:var(--white);}
 textarea{resize:vertical;min-height:72px;}
 .row-2{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
@@ -98,6 +112,7 @@ textarea{resize:vertical;min-height:72px;}
 /* ── BUTTONS ── */
 .btn-primary{background:var(--salmon);color:var(--brown-dark);border:none;padding:11px 26px;font-family:'Inter',sans-serif;font-size:12px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;border-radius:2px;cursor:pointer;}
 .btn-primary:hover{background:var(--salmon-light);}
+.btn-primary:disabled{opacity:.55;cursor:wait;}
 .btn-secondary{background:none;color:var(--brown-mid);border:1px solid var(--gray-mid);padding:11px 22px;font-family:'Inter',sans-serif;font-size:12px;font-weight:500;letter-spacing:.06em;border-radius:2px;cursor:pointer;}
 .btn-secondary:hover{border-color:var(--salmon);color:var(--salmon);}
 .btn-add{background:none;border:1px dashed var(--gray-mid);color:var(--brown-light);font-size:12px;padding:7px 16px;border-radius:3px;cursor:pointer;margin-top:10px;width:100%;}
@@ -168,13 +183,36 @@ textarea{resize:vertical;min-height:72px;}
     <div class="header-brand">Suzana Bonolo</div>
     <div class="header-sub">Interiores · Acompanhamento de Obra</div>
   </div>
-  <div class="header-badge" id="obraLabel" onclick="voltarSeletor()" title="Trocar obra">← Obras</div>
+  <div class="header-right">
+    <div class="header-user" id="userArea">
+      <div class="header-user-name" id="userName"></div>
+      <span class="header-user-sair" onclick="sair()">Sair</span>
+    </div>
+    <div class="header-badge" id="obraLabel" onclick="voltarSeletor()" title="Trocar obra" style="display:none;">← Obras</div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════
+     LOGIN
+═══════════════════════════════════════════ -->
+<div class="page active" id="pageLogin">
+  <div class="login-card">
+    <div class="login-brand">Suzana Bonolo</div>
+    <div class="login-sub">Acompanhamento de Obra</div>
+    <div class="login-erro" id="loginErro"></div>
+    <label>E-mail</label>
+    <input type="email" id="loginEmail" placeholder="seu@email.com" autocomplete="username">
+    <label>Senha</label>
+    <input type="password" id="loginSenha" placeholder="••••••••" autocomplete="current-password" onkeydown="if(event.key==='Enter')fazerLogin()">
+    <button class="btn-primary" id="btnLogin" style="width:100%;" onclick="fazerLogin()">Entrar</button>
+    <div style="font-size:11px;color:var(--brown-light);text-align:center;margin-top:14px;">Esqueceu a senha? Fale com a Suzana.</div>
+  </div>
 </div>
 
 <!-- ═══════════════════════════════════════════
      SELETOR DE OBRA
 ═══════════════════════════════════════════ -->
-<div class="page active" id="pageSel">
+<div class="page" id="pageSel">
 <div class="container">
   <div class="sec-title" style="margin-bottom:6px;">Obras em andamento</div>
   <div class="sec-sub">Selecione a obra para gerar o relatório desta semana.</div>
@@ -194,7 +232,7 @@ textarea{resize:vertical;min-height:72px;}
   <input type="text" id="novaObraCidade" placeholder="Ex: São Paulo – SP">
   <div class="btn-row">
     <button class="btn-secondary" onclick="fecharModal()">Cancelar</button>
-    <button class="btn-primary" onclick="criarObra()">Criar Obra</button>
+    <button class="btn-primary" id="btnCriarObra" onclick="criarObra()">Criar Obra</button>
   </div>
 </div>
 </div>
@@ -376,8 +414,47 @@ textarea{resize:vertical;min-height:72px;}
 ═══════════════════════════════════════════ -->
 <script>
 
-/* ── CATÁLOGO DE OBRAS ─────────────────────────────────────────────── */
-const OBRAS_CATALOG = {
+/* ── SUPABASE (banco de dados e login) ────────────────────────────── */
+const SUPABASE_URL = 'https://lluyihtkgraxbpktewdu.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_BMlBLr96Q55bjbvZpHlKjA_1vXNu9ds';
+let sb = null;
+try { sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY); } catch(e) {}
+
+const USUARIOS = {
+  'suzanabonolo@suzanabonolo.com.br': 'Suzana Bonolo',
+  'brunatadeuarquitetura@gmail.com': 'Bruna Tadeu',
+  'arqlaizleones@gmail.com': 'Laiz Leones'
+};
+let usuarioEmail = '';
+let usuarioNome = '';
+
+/* ── MODELOS PADRÃO (usados ao criar obra nova e na 1ª carga) ─────── */
+const AMBIENTES_PADRAO = ["Living","Cozinha","Área de Serviço","Suite Master","Banho Master","Banho Social","Lavabo","Varanda","Hall"];
+const ETAPAS_PADRAO = [
+  {tipo:"Civil",item:"Demolição",inicio:"",fim:""},
+  {tipo:"Civil",item:"Construção",inicio:"",fim:""},
+  {tipo:"Civil",item:"Hidráulica",inicio:"",fim:""},
+  {tipo:"Civil",item:"Impermeabilização de piso e paredes",inicio:"",fim:""},
+  {tipo:"Civil",item:"Infra e condensadora ar condicionado",inicio:"",fim:""},
+  {tipo:"Civil",item:"Elétrica",inicio:"",fim:""},
+  {tipo:"Civil",item:"Revestimentos de piso",inicio:"",fim:""},
+  {tipo:"Civil",item:"Revestimentos de parede",inicio:"",fim:""},
+  {tipo:"Civil",item:"Forros",inicio:"",fim:""},
+  {tipo:"Civil",item:"Pintura",inicio:"",fim:""},
+  {tipo:"Civil",item:"Instalação de luminárias técnicas",inicio:"",fim:""},
+  {tipo:"Civil",item:"Instalação de louças e metais",inicio:"",fim:""},
+  {tipo:"Marcenaria",item:"Medição marcenaria",inicio:"",fim:""},
+  {tipo:"Marcenaria",item:"Instalação de marcenaria",inicio:"",fim:""},
+  {tipo:"Marmoraria",item:"Medição marmoraria",inicio:"",fim:""},
+  {tipo:"Marmoraria",item:"Instalação de marmoraria",inicio:"",fim:""},
+  {tipo:"Vidraçaria",item:"Instalação de box",inicio:"",fim:""},
+  {tipo:"Decor",item:"Medição de persianas e cortinas",inicio:"",fim:""},
+  {tipo:"Decor",item:"Instalação de persianas e cortinas",inicio:"",fim:""},
+  {tipo:"Decor",item:"Limpeza pós obra",inicio:"",fim:""},
+];
+
+/* Obras que existiam antes do banco — inseridas automaticamente na 1ª carga */
+const SEED_OBRAS = {
   'paineira74': {
     label: 'Paineira 74',
     clienteDefault: 'Lídia e Douglas',
@@ -439,8 +516,11 @@ const OBRAS_CATALOG = {
   }
 };
 
+/* ── CATÁLOGO DE OBRAS (carregado do banco após o login) ──────────── */
+let OBRAS_CATALOG = {};
+
 /* ── ESTADO DA SESSÃO ─────────────────────────────────────────────── */
-let obraAtual = null;  // key do catálogo ou obj customizado
+let obraAtual = null;  // key do catálogo
 let etapas = [];
 let ambFotos = [];
 let _realizacoes = [];
@@ -450,12 +530,110 @@ let _imprevistos = [];
 let _observacoes = [];
 let mediaRecorder = null, audioChunks = [], isRecording = false;
 
+/* ── LOGIN ────────────────────────────────────────────────────────── */
+function loginErro(msg) {
+  const el = document.getElementById('loginErro');
+  el.textContent = msg;
+  el.style.display = msg ? 'block' : 'none';
+}
+
+async function fazerLogin() {
+  const email = document.getElementById('loginEmail').value.trim().toLowerCase();
+  const senha = document.getElementById('loginSenha').value;
+  if(!email || !senha) { loginErro('Preencha e-mail e senha.'); return; }
+  if(!sb) { loginErro('Sistema de login não carregou. Verifique a internet e recarregue a página.'); return; }
+  const btn = document.getElementById('btnLogin');
+  btn.disabled = true; btn.textContent = 'Entrando...';
+  loginErro('');
+  try {
+    const { data, error } = await sb.auth.signInWithPassword({ email: email, password: senha });
+    if(error) {
+      loginErro(error.message && error.message.includes('Invalid login') ? 'E-mail ou senha incorretos.' : 'Erro ao entrar: ' + error.message);
+    } else {
+      await entrar(data.session);
+    }
+  } catch(e) {
+    loginErro('Sem conexão. Verifique a internet e tente de novo.');
+  }
+  btn.disabled = false; btn.textContent = 'Entrar';
+}
+
+async function entrar(session) {
+  usuarioEmail = (session.user.email || '').toLowerCase();
+  usuarioNome = USUARIOS[usuarioEmail] || usuarioEmail;
+  document.getElementById('userName').textContent = usuarioNome;
+  document.getElementById('userArea').style.display = 'block';
+  document.getElementById('obraLabel').style.display = 'block';
+  document.getElementById('pageLogin').classList.remove('active');
+  document.getElementById('pageSel').classList.add('active');
+  document.getElementById('selGrid').innerHTML = '<div class="loading"><div class="spinner"></div> Carregando obras...</div>';
+  await carregarObrasDB();
+  renderSeletor();
+}
+
+async function sair() {
+  saveDraft();
+  try { await sb.auth.signOut(); } catch(e) {}
+  location.reload();
+}
+
+/* ── OBRAS NO BANCO ───────────────────────────────────────────────── */
+async function carregarObrasDB() {
+  let { data, error } = await sb.from('obras').select('*').eq('arquivada', false).order('created_at');
+  if(error) {
+    alert('Não foi possível carregar as obras: ' + error.message + '\nVerifique a internet e recarregue a página.');
+    data = data || [];
+  }
+
+  let precisaRecarregar = false;
+
+  // 1ª carga: insere as obras que existiam antes do banco
+  if(!error && data.length === 0) {
+    const seeds = Object.entries(SEED_OBRAS).map(([key, o]) => ({
+      key: key, label: o.label, cliente: o.clienteDefault, cidade: o.cidadeDefault,
+      ambientes: o.ambientesBase, etapas_base: o.etapasBase, created_by: usuarioEmail
+    }));
+    const r = await sb.from('obras').upsert(seeds, { onConflict: 'key', ignoreDuplicates: true });
+    if(!r.error) precisaRecarregar = true;
+  }
+
+  // Migra obras criadas antes no navegador (localStorage) para o banco
+  if(!error) {
+    let custom = {};
+    try { custom = JSON.parse(localStorage.getItem('obrasCustom') || '{}'); } catch(e) {}
+    const jaExistem = new Set(data.map(r => r.key));
+    const paraMigrar = Object.entries(custom).filter(([k]) => !jaExistem.has(k) && !SEED_OBRAS[k]);
+    if(paraMigrar.length) {
+      const linhas = paraMigrar.map(([key, o]) => ({
+        key: key, label: o.label || key, cliente: o.clienteDefault || '', cidade: o.cidadeDefault || '',
+        ambientes: o.ambientesBase || AMBIENTES_PADRAO, etapas_base: o.etapasBase || ETAPAS_PADRAO, created_by: usuarioEmail
+      }));
+      const r = await sb.from('obras').upsert(linhas, { onConflict: 'key', ignoreDuplicates: true });
+      if(!r.error) { precisaRecarregar = true; try { localStorage.removeItem('obrasCustom'); } catch(e) {} }
+    }
+  }
+
+  if(precisaRecarregar) {
+    const r = await sb.from('obras').select('*').eq('arquivada', false).order('created_at');
+    if(!r.error) data = r.data;
+  }
+
+  OBRAS_CATALOG = {};
+  data.forEach(r => {
+    OBRAS_CATALOG[r.key] = {
+      dbId: r.id, label: r.label,
+      clienteDefault: r.cliente || '', cidadeDefault: r.cidade || '',
+      ambientesBase: Array.isArray(r.ambientes) ? r.ambientes : [],
+      etapasBase: Array.isArray(r.etapas_base) ? r.etapas_base : []
+    };
+  });
+}
+
 /* ── SELETOR ──────────────────────────────────────────────────────── */
 function renderSeletor() {
   const grid = document.getElementById('selGrid');
   grid.innerHTML = '';
 
-  // obras predefinidas
   Object.entries(OBRAS_CATALOG).forEach(([key, obra]) => {
     const card = document.createElement('div');
     card.className = 'sel-card';
@@ -468,7 +646,6 @@ function renderSeletor() {
     grid.appendChild(card);
   });
 
-  // card nova obra
   const cardNew = document.createElement('div');
   cardNew.className = 'sel-card sel-card-new';
   cardNew.innerHTML = '<span>+</span><small>Nova obra</small>';
@@ -486,7 +663,7 @@ function abrirObra(key) {
   document.getElementById('cliente').value = obra.clienteDefault;
   document.getElementById('cidade').value = obra.cidadeDefault;
   document.getElementById('semana').value = '';
-  document.getElementById('responsavel').value = '';
+  document.getElementById('responsavel').value = USUARIOS[usuarioEmail] || '';
   document.getElementById('transcricao').value = '';
 
   // inicializa etapas e fotos
@@ -522,8 +699,8 @@ function abrirObra(key) {
 }
 
 function voltarSeletor() {
+  if(!usuarioEmail) return; // ainda não logou
   saveDraft();
-  // esconde todas as pages de obra
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.getElementById('navSteps').style.display = 'none';
   document.getElementById('obraLabel').textContent = '← Obras';
@@ -535,60 +712,45 @@ function fecharModal() {
   document.getElementById('modalOverlay').classList.remove('open');
 }
 
-function criarObra() {
+async function criarObra() {
   const nome = document.getElementById('novaObraNome').value.trim();
   if(!nome) { alert('Informe o nome da obra.'); return; }
   const key = nome.toLowerCase().replace(/\s+/g,'-').replace(/[^a-z0-9-]/g,'');
-  OBRAS_CATALOG[key] = {
+  if(!key) { alert('Nome inválido. Use letras e números.'); return; }
+  if(OBRAS_CATALOG[key]) { alert('Já existe uma obra com esse nome.'); return; }
+
+  const btn = document.getElementById('btnCriarObra');
+  btn.disabled = true; btn.textContent = 'Criando...';
+  const nova = {
+    key: key,
     label: nome,
-    custom: true,
-    clienteDefault: document.getElementById('novaObraCliente').value.trim(),
-    cidadeDefault: document.getElementById('novaObraCidade').value.trim(),
-    ambientesBase: ["Living","Cozinha","Área de Serviço","Suite Master","Banho Master","Banho Social","Lavabo","Varanda","Hall"],
-    etapasBase: [
-      {tipo:"Civil",item:"Demolição",inicio:"",fim:""},
-      {tipo:"Civil",item:"Construção",inicio:"",fim:""},
-      {tipo:"Civil",item:"Hidráulica",inicio:"",fim:""},
-      {tipo:"Civil",item:"Impermeabilização de piso e paredes",inicio:"",fim:""},
-      {tipo:"Civil",item:"Infra e condensadora ar condicionado",inicio:"",fim:""},
-      {tipo:"Civil",item:"Elétrica",inicio:"",fim:""},
-      {tipo:"Civil",item:"Revestimentos de piso",inicio:"",fim:""},
-      {tipo:"Civil",item:"Revestimentos de parede",inicio:"",fim:""},
-      {tipo:"Civil",item:"Forros",inicio:"",fim:""},
-      {tipo:"Civil",item:"Pintura",inicio:"",fim:""},
-      {tipo:"Civil",item:"Instalação de luminárias técnicas",inicio:"",fim:""},
-      {tipo:"Civil",item:"Instalação de louças e metais",inicio:"",fim:""},
-      {tipo:"Marcenaria",item:"Medição marcenaria",inicio:"",fim:""},
-      {tipo:"Marcenaria",item:"Instalação de marcenaria",inicio:"",fim:""},
-      {tipo:"Marmoraria",item:"Medição marmoraria",inicio:"",fim:""},
-      {tipo:"Marmoraria",item:"Instalação de marmoraria",inicio:"",fim:""},
-      {tipo:"Vidraçaria",item:"Instalação de box",inicio:"",fim:""},
-      {tipo:"Decor",item:"Medição de persianas e cortinas",inicio:"",fim:""},
-      {tipo:"Decor",item:"Instalação de persianas e cortinas",inicio:"",fim:""},
-      {tipo:"Decor",item:"Limpeza pós obra",inicio:"",fim:""},
-    ]
+    cliente: document.getElementById('novaObraCliente').value.trim(),
+    cidade: document.getElementById('novaObraCidade').value.trim(),
+    ambientes: AMBIENTES_PADRAO,
+    etapas_base: ETAPAS_PADRAO,
+    created_by: usuarioEmail
   };
-  salvarObrasCustom();
+  const { data, error } = await sb.from('obras').insert(nova).select().single();
+  btn.disabled = false; btn.textContent = 'Criar Obra';
+
+  if(error) {
+    alert('Não foi possível criar a obra: ' + error.message + '\nVerifique a internet e tente de novo.');
+    return;
+  }
+  OBRAS_CATALOG[key] = {
+    dbId: data.id, label: data.label,
+    clienteDefault: data.cliente || '', cidadeDefault: data.cidade || '',
+    ambientesBase: data.ambientes, etapasBase: data.etapas_base
+  };
+  document.getElementById('novaObraNome').value = '';
+  document.getElementById('novaObraCliente').value = '';
+  document.getElementById('novaObraCidade').value = '';
   fecharModal();
   renderSeletor();
   abrirObra(key);
 }
 
-/* Obras criadas pela equipe ficam salvas no navegador */
-function salvarObrasCustom() {
-  const custom = {};
-  Object.entries(OBRAS_CATALOG).forEach(([k,o]) => { if(o.custom) custom[k] = o; });
-  try { localStorage.setItem('obrasCustom', JSON.stringify(custom)); } catch(e) {}
-}
-
-function carregarObrasCustom() {
-  try {
-    const c = JSON.parse(localStorage.getItem('obrasCustom') || '{}');
-    Object.entries(c).forEach(([k,o]) => { if(!OBRAS_CATALOG[k]) OBRAS_CATALOG[k] = o; });
-  } catch(e) {}
-}
-
-/* ── RASCUNHO AUTOMÁTICO (localStorage) ───────────────────────────── */
+/* ── RASCUNHO AUTOMÁTICO (localStorage — vira banco no Commit 2) ──── */
 function saveDraft() {
   if(!obraAtual) return;
   const d = {
@@ -1202,8 +1364,17 @@ function imprimirRelatorio() {
 }
 
 /* ── INIT ─────────────────────────────────────────────────────────── */
-carregarObrasCustom();
-renderSeletor();
+async function init() {
+  if(!sb) {
+    loginErro('Sistema de login não carregou. Verifique a internet e recarregue a página.');
+    return;
+  }
+  try {
+    const { data } = await sb.auth.getSession();
+    if(data && data.session) await entrar(data.session);
+  } catch(e) {}
+}
+init();
 setInterval(saveDraft, 20000);
 </script>
 </body>
