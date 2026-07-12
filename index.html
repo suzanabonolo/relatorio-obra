@@ -246,6 +246,7 @@ textarea{resize:vertical;min-height:72px;}
   <div class="step" onclick="goTo(2)">3. Fotos</div>
   <div class="step" onclick="goTo(3)">4. Revisão</div>
   <div class="step" onclick="goTo(4)">5. Exportar</div>
+  <div id="saveStatus" style="margin-left:auto;padding:15px 4px;font-size:10px;color:var(--brown-light);white-space:nowrap;"></div>
 </nav>
 
 <!-- ═══════════════════════════════════════════
@@ -379,7 +380,7 @@ textarea{resize:vertical;min-height:72px;}
   <div id="reviewContent"></div>
   <div class="btn-row">
     <button class="btn-secondary" onclick="goTo(2)">← Corrigir</button>
-    <button class="btn-primary" onclick="buildExport();goTo(4)">Aprovar e Gerar →</button>
+    <button class="btn-primary" onclick="aprovarEGerar()">Aprovar e Gerar →</button>
   </div>
 </div>
 </div>
@@ -530,6 +531,11 @@ let _imprevistos = [];
 let _observacoes = [];
 let mediaRecorder = null, audioChunks = [], isRecording = false;
 
+/* ── ESTADO DO SALVAMENTO NO BANCO ────────────────────────────────── */
+let rascunhoDbId = null;      // id da linha de rascunho desta obra no banco
+let _ultimoDadosSalvos = '';  // evita salvar de novo o que não mudou
+let _salvandoDB = false;
+
 /* ── LOGIN ────────────────────────────────────────────────────────── */
 function loginErro(msg) {
   const el = document.getElementById('loginErro');
@@ -653,11 +659,14 @@ function renderSeletor() {
   grid.appendChild(cardNew);
 }
 
-function abrirObra(key) {
+async function abrirObra(key) {
   obraAtual = key;
   const obra = OBRAS_CATALOG[key];
   document.getElementById('obraLabel').textContent = obra.label;
   document.getElementById('navSteps').style.display = 'flex';
+  rascunhoDbId = null;
+  _ultimoDadosSalvos = '';
+  setSaveStatus('');
 
   // pre-preenche campos
   document.getElementById('cliente').value = obra.clienteDefault;
@@ -679,23 +688,76 @@ function abrirObra(key) {
   document.getElementById('ambFotosList').innerHTML = '';
   obra.ambientesBase.forEach(n => addAmbFoto(n));
 
-  // rascunho automático: oferece continuar de onde parou
+  // 1º: procura rascunho no BANCO (visível para toda a equipe)
+  let dbDraft = null;
   try {
-    const raw = localStorage.getItem('rascunho-' + key);
-    if (raw) {
-      const d = JSON.parse(raw);
-      const quando = d.savedAt ? new Date(d.savedAt).toLocaleString('pt-BR') : '';
-      if (confirm('Encontrei um rascunho não finalizado desta obra' + (quando ? ' (salvo em ' + quando + ')' : '') + '.\n\nOK = continuar de onde parou\nCancelar = começar do zero')) {
-        restaurarRascunho(d);
-      } else {
-        localStorage.removeItem('rascunho-' + key);
-      }
+    if(sb && obra.dbId) {
+      const { data } = await sb.from('relatorios').select('*')
+        .eq('obra_id', obra.dbId).eq('status', 'rascunho')
+        .order('updated_at', { ascending: false }).limit(1);
+      if(data && data.length) dbDraft = data[0];
     }
   } catch(e) {}
+
+  const temConteudo = d => d && d.dados && !d.dados.vazio &&
+    ((d.dados.etapas||[]).length || (d.dados.realizacoes||[]).length || (d.dados.pendencias||[]).length || d.dados.semana);
+
+  if(dbDraft) {
+    rascunhoDbId = dbDraft.id; // reusa a mesma linha nos próximos salvamentos
+    if(temConteudo(dbDraft)) {
+      const quando = dbDraft.updated_at ? new Date(dbDraft.updated_at).toLocaleString('pt-BR') : '';
+      if(confirm('Encontrei um rascunho desta obra salvo por ' + (dbDraft.updated_by || 'alguém da equipe') + (quando ? ' em ' + quando : '') + '.\n\nOK = continuar de onde parou\nCancelar = começar do zero')) {
+        restaurarRascunho(dbDraft.dados);
+        const mescladas = mesclarFotosLocais(key);
+        if((dbDraft.dados.qtdFotos || 0) > 0 && mescladas === 0) {
+          alert('Este rascunho tinha ' + dbDraft.dados.qtdFotos + ' foto(s), mas fotos ficam salvas apenas no aparelho onde foram adicionadas (até a próxima atualização do app). Adicione as fotos por este aparelho ou finalize o relatório no aparelho original.');
+        }
+      }
+    }
+  } else {
+    // 2º: fallback — rascunho antigo salvo só neste aparelho
+    try {
+      const raw = localStorage.getItem('rascunho-' + key);
+      if (raw) {
+        const d = JSON.parse(raw);
+        const quando = d.savedAt ? new Date(d.savedAt).toLocaleString('pt-BR') : '';
+        if (confirm('Encontrei um rascunho não finalizado desta obra salvo neste aparelho' + (quando ? ' (em ' + quando + ')' : '') + '.\n\nOK = continuar de onde parou\nCancelar = começar do zero')) {
+          restaurarRascunho(d);
+        } else {
+          localStorage.removeItem('rascunho-' + key);
+        }
+      }
+    } catch(e) {}
+  }
 
   // mostra tela 0
   document.getElementById('pageSel').classList.remove('active');
   goTo(0);
+}
+
+/* Reaproveita no aparelho as fotos do rascunho local (o banco ainda não guarda fotos) */
+function mesclarFotosLocais(key) {
+  let mescladas = 0;
+  try {
+    const raw = localStorage.getItem('rascunho-' + key);
+    if(!raw) return 0;
+    const local = JSON.parse(raw);
+    (local.ambFotos || []).filter(Boolean).forEach(la => {
+      const fotos = (la.fotos || []).filter(Boolean);
+      if(!fotos.length) return;
+      let idx = ambFotos.findIndex(a => a && a.nome === la.nome);
+      if(idx < 0) { idx = ambFotos.length; addAmbFoto(la.nome || ''); }
+      fotos.forEach(src => {
+        const fi = ambFotos[idx].fotos.length;
+        ambFotos[idx].fotos.push(src);
+        mescladas++;
+        const w = document.createElement('div'); w.className = 'foto-wrap'; w.id = 'fw-'+idx+'-'+fi;
+        w.innerHTML = '<img class="foto-thumb" src="'+src+'"><button class="foto-del" onclick="delFoto('+idx+','+fi+')">×</button>';
+        document.getElementById('fg-'+idx).appendChild(w);
+      });
+    });
+  } catch(e) {}
+  return mescladas;
 }
 
 function voltarSeletor() {
@@ -750,7 +812,98 @@ async function criarObra() {
   abrirObra(key);
 }
 
-/* ── RASCUNHO AUTOMÁTICO (localStorage — vira banco no Commit 2) ──── */
+/* ── RASCUNHO AUTOMÁTICO (aparelho + banco) ───────────────────────── */
+function montarDados() {
+  // Tudo, exceto as fotos em si (elas vão para o Storage no Commit 3)
+  return {
+    obraKey: obraAtual,
+    savedAt: Date.now(),
+    cliente: document.getElementById('cliente').value,
+    semana: document.getElementById('semana').value,
+    cidade: document.getElementById('cidade').value,
+    responsavel: document.getElementById('responsavel').value,
+    transcricao: document.getElementById('transcricao').value,
+    etapas: etapas,
+    ambFotos: ambFotos.filter(Boolean).map(a => ({nome: a.nome, fotos: []})),
+    qtdFotos: ambFotos.filter(Boolean).reduce((s,a) => s + (a.fotos||[]).filter(Boolean).length, 0),
+    realizacoes: _realizacoes,
+    previstos: _previstos,
+    pendencias: _pendencias,
+    imprevistos: _imprevistos,
+    observacoes: _observacoes
+  };
+}
+
+function setSaveStatus(estado) {
+  const el = document.getElementById('saveStatus');
+  if(!el) return;
+  if(estado === 'salvando') { el.textContent = '☁ Salvando...'; el.style.color = 'var(--brown-light)'; }
+  else if(estado === 'ok') { el.textContent = '☁ Salvo às ' + new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}) + ' · ' + usuarioNome; el.style.color = 'var(--green-ok)'; }
+  else if(estado === 'erro') { el.textContent = '⚠ Sem conexão — rascunho salvo neste aparelho'; el.style.color = 'var(--amber)'; }
+  else { el.textContent = ''; }
+}
+
+async function saveDraftDB() {
+  if(!obraAtual || !sb || !usuarioEmail || _salvandoDB) return;
+  const obra = OBRAS_CATALOG[obraAtual];
+  if(!obra || !obra.dbId) return;
+  const dados = montarDados();
+  const assinatura = JSON.stringify(dados.etapas) + '|' + JSON.stringify([dados.cliente,dados.semana,dados.cidade,dados.responsavel,dados.transcricao,dados.realizacoes,dados.previstos,dados.pendencias,dados.imprevistos,dados.observacoes,dados.qtdFotos,dados.ambFotos]);
+  if(assinatura === _ultimoDadosSalvos) return; // nada mudou
+  _salvandoDB = true;
+  setSaveStatus('salvando');
+  try {
+    const agora = new Date().toISOString();
+    if(rascunhoDbId) {
+      const { error } = await sb.from('relatorios')
+        .update({ dados: dados, semana: dados.semana, updated_at: agora, updated_by: usuarioNome })
+        .eq('id', rascunhoDbId);
+      if(error) throw error;
+    } else {
+      const { data, error } = await sb.from('relatorios')
+        .insert({ obra_id: obra.dbId, semana: dados.semana, status: 'rascunho', dados: dados, created_by: usuarioNome, updated_by: usuarioNome })
+        .select().single();
+      if(error) throw error;
+      rascunhoDbId = data.id;
+    }
+    _ultimoDadosSalvos = assinatura;
+    setSaveStatus('ok');
+  } catch(e) {
+    setSaveStatus('erro');
+  }
+  _salvandoDB = false;
+}
+
+async function salvarAprovado() {
+  if(!obraAtual || !sb || !usuarioEmail) return;
+  const obra = OBRAS_CATALOG[obraAtual];
+  if(!obra || !obra.dbId) return;
+  const dados = montarDados();
+  try {
+    await sb.from('relatorios').insert({
+      obra_id: obra.dbId, semana: dados.semana, status: 'aprovado',
+      dados: dados, created_by: usuarioNome, updated_by: usuarioNome
+    });
+  } catch(e) {}
+}
+
+function aprovarEGerar() {
+  buildExport();
+  goTo(4);
+  salvarAprovado(); // grava a versão aprovada no banco, em segundo plano
+}
+
+/* Após exportar a semana, o rascunho da obra recomeça vazio (a linha é reaproveitada) */
+async function esvaziarRascunhoDB() {
+  if(!sb || !rascunhoDbId) return;
+  try {
+    await sb.from('relatorios')
+      .update({ dados: { vazio: true }, semana: '', updated_at: new Date().toISOString(), updated_by: usuarioNome })
+      .eq('id', rascunhoDbId);
+    _ultimoDadosSalvos = '';
+  } catch(e) {}
+}
+
 function saveDraft() {
   if(!obraAtual) return;
   const d = {
@@ -778,6 +931,7 @@ function saveDraft() {
       localStorage.setItem('rascunho-' + obraAtual, JSON.stringify(d2));
     } catch(e2) {}
   }
+  saveDraftDB(); // em segundo plano; indicador na barra mostra o resultado
 }
 
 function restaurarRascunho(d) {
@@ -857,6 +1011,7 @@ function exportJSON() {
   a.click();
   // Semana exportada com segurança: limpa o rascunho desta obra
   try { localStorage.removeItem('rascunho-' + obraAtual); } catch(e) {}
+  esvaziarRascunhoDB();
 }
 
 function loadJSON(input) {
