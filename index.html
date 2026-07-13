@@ -1270,7 +1270,8 @@ async function processarIA() {
   if(!texto) { alert('Cole ou grave o áudio primeiro.'); return; }
   const st = document.getElementById('iaStatus');
   st.innerHTML = '<div class="loading"><div class="spinner"></div> Processando com IA...</div>';
-  const prompt = 'Você é assistente de Suzana Bonolo Interiores. Analise esta transcrição de visita de obra e classifique TODAS as informações mencionadas.\n\nTranscrição:\n"""'+texto+'"""\n\nRetorne APENAS JSON válido sem texto extra:\n{"etapas":[{"nome":"nome da etapa","status":"ok|pendente|alerta|semAlteracao","obs":"observação curta","proximo":"próxima semana"}],"realizacoes":["item curto"],"previstos":["item curto"],"pendencias":["item curto"],"imprevistos":["item curto"],"observacoes":["item curto"]}\n\nRegras:\n- REGRA MAIS IMPORTANTE: é PROIBIDO descartar informações. Toda informação da transcrição deve aparecer em pelo menos um campo do JSON. Se não souber onde classificar, coloque em observacoes — nunca omita.\n- etapas: status ok=avançou normalmente, pendente=tem pendências, alerta=problema ou retrabalho, semAlteracao=sem movimento\n- pendencias: o que falta fazer ou ficou incompleto (ex: "falta abrir os nichos da parede do banheiro")\n- imprevistos: descobertas ou serviços novos que não estavam planejados (ex: "parede extra da cozinha precisou ser demolida")\n- observacoes: fatos do canteiro que não são tarefa nem problema (ex: "bancada da churrasqueira servindo de apoio para a obra")\n- realizacoes: o que foi concluído na semana (máximo 5)\n- previstos: o que vem nas próximas semanas (máximo 5)\n- Itens curtos e específicos, máximo 15 palavras cada\n- Obs e proximo das etapas: máximo 12 palavras cada\n- Tudo em português';
+  const nomesEtapas = etapas.filter(Boolean).map(e => e.item);
+  const prompt = 'Você é assistente de Suzana Bonolo Interiores. Analise esta transcrição de visita de obra e classifique TODAS as informações mencionadas.\n\nETAPAS DO CRONOGRAMA DESTA OBRA (a única lista válida):\n- ' + nomesEtapas.join('\n- ') + '\n\nTranscrição:\n"""'+texto+'"""\n\nRetorne APENAS JSON válido sem texto extra:\n{"etapas":[{"nome":"nome EXATO copiado da lista acima","status":"ok|pendente|alerta|semAlteracao","obs":"observação curta","proximo":"próxima semana"}],"realizacoes":["item curto"],"previstos":["item curto"],"pendencias":["item curto"],"imprevistos":["item curto"],"observacoes":["item curto"]}\n\nRegras:\n- REGRA MAIS IMPORTANTE: é PROIBIDO descartar informações. Toda informação da transcrição deve aparecer em pelo menos um campo do JSON. Se não souber onde classificar, coloque em observacoes — nunca omita.\n- 2ª REGRA MAIS IMPORTANTE: em "etapas", use SOMENTE nomes copiados exatamente da lista do cronograma acima. É PROIBIDO inventar etapa que não está na lista. Se a transcrição menciona um serviço que NÃO corresponde a nenhuma etapa da lista (mesmo parecido), NÃO o coloque em "etapas" — coloque a informação em realizacoes, previstos, pendencias, imprevistos ou observacoes, citando o nome do serviço no texto do item (ex: "Impermeabilização em andamento").\n- etapas: status ok=avançou normalmente, pendente=tem pendências, alerta=problema ou retrabalho, semAlteracao=sem movimento\n- pendencias: o que falta fazer ou ficou incompleto (ex: "falta abrir os nichos da parede do banheiro")\n- imprevistos: descobertas ou serviços novos que não estavam planejados (ex: "parede extra da cozinha precisou ser demolida")\n- observacoes: fatos do canteiro que não são tarefa nem problema (ex: "bancada da churrasqueira servindo de apoio para a obra")\n- realizacoes: o que foi concluído na semana (máximo 5)\n- previstos: o que vem nas próximas semanas, com datas quando citadas (máximo 5)\n- Itens curtos e específicos, máximo 15 palavras cada\n- Obs e proximo das etapas: máximo 12 palavras cada\n- Tudo em português';
   try {
     const resp = await fetch('/api/chat', {
       method:'POST', headers:{'Content-Type':'application/json'},
@@ -1287,20 +1288,29 @@ async function processarIA() {
     _imprevistos = parsed.imprevistos||[];
     _observacoes = parsed.observacoes||[];
     const etapasIA = parsed.etapas||[];
+    const jaTem = (arr, txt) => arr.some(x => x && x.toLowerCase().includes(txt.toLowerCase().substring(0,18)));
     etapasIA.forEach(pe => {
-      const nome = pe.nome||'';
+      const nome = (pe.nome||'').trim();
       const status = pe.status||'';
       const obs = pe.obs||'';
       const proximo = pe.proximo||'';
       if(!nome) return;
-      const idx = etapas.findIndex(e => e && e.item.toLowerCase().includes(nome.toLowerCase().substring(0,5)));
-      if(idx>=0) { etapas[idx].status=status; etapas[idx].obs=obs; etapas[idx].proximo=proximo; }
-      else { etapas.push({tipo:'Extra',item:nome,inicio:'',fim:'',status:status,obs:obs,proximo:proximo,pct:0}); }
+      // 1º tenta nome exato; depois correspondência por conteúdo
+      let idx = etapas.findIndex(e => e && e.item.toLowerCase().trim() === nome.toLowerCase());
+      if(idx < 0) idx = etapas.findIndex(e => e && (e.item.toLowerCase().includes(nome.toLowerCase()) || nome.toLowerCase().includes(e.item.toLowerCase().substring(0,8))));
+      if(idx >= 0) {
+        etapas[idx].status = status; etapas[idx].obs = obs; etapas[idx].proximo = proximo;
+      } else {
+        // Etapa fora do cronograma: NÃO cria etapa — vira informação nas listas
+        if(obs && !jaTem(_observacoes, nome) && !jaTem(_realizacoes, nome) && !jaTem(_pendencias, nome) && !jaTem(_imprevistos, nome)) _observacoes.push(nome + ': ' + obs);
+        if(proximo && !jaTem(_previstos, nome)) _previstos.push(nome + ': ' + proximo);
+        if(!obs && !proximo && !jaTem(_observacoes, nome)) _observacoes.push(nome + (status === 'ok' ? ' em andamento' : ''));
+      }
     });
     renderEtapas();
     renderListas();
     saveDraft();
-    st.innerHTML = '<div class="info-box" style="margin-top:12px;">✓ IA preencheu etapas, pendências, imprevistos e observações. Revise e ajuste os percentuais.</div>';
+    st.innerHTML = '<div class="info-box" style="margin-top:12px;">✓ IA preencheu etapas, pendências, imprevistos e observações. Serviços fora do cronograma foram para Observações/Previstos — use "+ Adicionar etapa" se quiser promovê-los a etapa. Revise e ajuste os percentuais.</div>';
   } catch(e) {
     st.innerHTML = '<div class="alert-box" style="margin-top:12px;">⚠️ Erro: '+e.message+'. Preencha manualmente abaixo.</div>';
   }
