@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Suzana Bonolo · Acompanhamento de Obra</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;500&family=Inter:wght@300;400;500;600&display=swap');
 :root{
@@ -91,6 +92,18 @@ textarea{resize:vertical;min-height:72px;}
 .tag-ref.sel{background:var(--red-alert);color:var(--white);}
 .tag-sa{background:var(--gray-light);color:var(--brown-light);border-color:var(--gray-mid);}
 .tag-sa.sel{background:var(--brown-light);color:var(--white);}
+.tag-na{background:var(--gray-light);color:var(--brown-light);border-color:var(--gray-mid);text-decoration:line-through;}
+.tag-na.sel{background:var(--gray-mid);color:var(--brown-dark);text-decoration:line-through;}
+.etapa-nome-input{flex:1;margin-bottom:0!important;background:transparent!important;border:none!important;border-radius:0!important;padding:2px 0!important;font-size:13px!important;font-weight:600;color:var(--brown-dark);min-width:80px;}
+.etapa-nome-input:focus{border-bottom:1px solid var(--salmon)!important;}
+.btn-mover{background:none;border:1px solid var(--gray-mid);color:var(--brown-light);cursor:pointer;font-size:11px;padding:4px 10px;border-radius:3px;}
+.btn-mover:hover{border-color:var(--salmon);color:var(--salmon);}
+.etapa-block.oculta{opacity:.55;}
+.badge-oculta{font-size:10px;font-weight:600;padding:2px 7px;border-radius:2px;background:var(--brown-dark);color:var(--salmon-light);text-transform:uppercase;letter-spacing:.05em;white-space:nowrap;}
+.btn-ocultar{background:none;border:1px solid var(--gray-mid);color:var(--brown-light);cursor:pointer;font-size:11px;padding:4px 10px;border-radius:3px;}
+.btn-ocultar.ativa{border-color:var(--red-alert);color:var(--red-alert);background:#FAEAEA;}
+.btn-ocultar:hover{border-color:var(--salmon);color:var(--salmon);}
+.mover-row{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;}
 .pct-row{display:flex;align-items:center;gap:12px;}
 .pct-row input{width:65px;margin-bottom:0;}
 .progress-bar{flex:1;height:5px;background:var(--gray-mid);border-radius:3px;overflow:hidden;}
@@ -107,6 +120,9 @@ textarea{resize:vertical;min-height:72px;}
 .fotos-grid{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;}
 .foto-wrap{position:relative;}
 .foto-thumb{width:68px;height:68px;border-radius:3px;object-fit:cover;border:1.5px solid var(--gray-mid);}
+.foto-thumb-status{width:68px;height:68px;border-radius:3px;border:1.5px solid var(--gray-mid);display:flex;align-items:center;justify-content:center;font-size:20px;background:var(--gray-light);}
+.foto-thumb-status.erro{cursor:pointer;border-color:#E8B8B8;background:#FAEAEA;}
+.foto-area.enviando{opacity:.6;pointer-events:none;}
 .foto-del{position:absolute;top:-6px;right:-6px;background:var(--red-alert);color:white;border:none;border-radius:50%;width:17px;height:17px;font-size:9px;cursor:pointer;display:flex;align-items:center;justify-content:center;}
 
 /* ── BUTTONS ── */
@@ -434,8 +450,8 @@ const AMBIENTES_PADRAO = ["Living","Cozinha","Área de Serviço","Suite Master",
 const ETAPAS_PADRAO = [
   {tipo:"Civil",item:"Demolição",inicio:"",fim:""},
   {tipo:"Civil",item:"Construção",inicio:"",fim:""},
-  {tipo:"Civil",item:"Hidráulica",inicio:"",fim:""},
   {tipo:"Civil",item:"Impermeabilização de piso e paredes",inicio:"",fim:""},
+  {tipo:"Civil",item:"Hidráulica",inicio:"",fim:""},
   {tipo:"Civil",item:"Infra e condensadora ar condicionado",inicio:"",fim:""},
   {tipo:"Civil",item:"Elétrica",inicio:"",fim:""},
   {tipo:"Civil",item:"Revestimentos de piso",inicio:"",fim:""},
@@ -708,10 +724,7 @@ async function abrirObra(key) {
       const quando = dbDraft.updated_at ? new Date(dbDraft.updated_at).toLocaleString('pt-BR') : '';
       if(confirm('Encontrei um rascunho desta obra salvo por ' + (dbDraft.updated_by || 'alguém da equipe') + (quando ? ' em ' + quando : '') + '.\n\nOK = continuar de onde parou\nCancelar = começar do zero')) {
         restaurarRascunho(dbDraft.dados);
-        const mescladas = mesclarFotosLocais(key);
-        if((dbDraft.dados.qtdFotos || 0) > 0 && mescladas === 0) {
-          alert('Este rascunho tinha ' + dbDraft.dados.qtdFotos + ' foto(s), mas fotos ficam salvas apenas no aparelho onde foram adicionadas (até a próxima atualização do app). Adicione as fotos por este aparelho ou finalize o relatório no aparelho original.');
-        }
+        mesclarFotosLocais(key); // bônus silencioso: recupera fotos de um rascunho antigo salvo só neste aparelho
       }
     }
   } else {
@@ -735,7 +748,7 @@ async function abrirObra(key) {
   goTo(0);
 }
 
-/* Reaproveita no aparelho as fotos do rascunho local (o banco ainda não guarda fotos) */
+/* Bônus: recupera fotos de um rascunho antigo salvo só neste aparelho (não duplica o que já veio do banco) */
 function mesclarFotosLocais(key) {
   let mescladas = 0;
   try {
@@ -747,9 +760,12 @@ function mesclarFotosLocais(key) {
       if(!fotos.length) return;
       let idx = ambFotos.findIndex(a => a && a.nome === la.nome);
       if(idx < 0) { idx = ambFotos.length; addAmbFoto(la.nome || ''); }
+      const jaTem = new Set(ambFotos[idx].fotos.filter(Boolean));
       fotos.forEach(src => {
+        if(jaTem.has(src)) return; // já veio do banco, não duplica
         const fi = ambFotos[idx].fotos.length;
         ambFotos[idx].fotos.push(src);
+        jaTem.add(src);
         mescladas++;
         const w = document.createElement('div'); w.className = 'foto-wrap'; w.id = 'fw-'+idx+'-'+fi;
         w.innerHTML = '<img class="foto-thumb" src="'+src+'"><button class="foto-del" onclick="delFoto('+idx+','+fi+')">×</button>';
@@ -814,7 +830,7 @@ async function criarObra() {
 
 /* ── RASCUNHO AUTOMÁTICO (aparelho + banco) ───────────────────────── */
 function montarDados() {
-  // Tudo, exceto as fotos em si (elas vão para o Storage no Commit 3)
+  // As fotos aqui já são URLs do Supabase Storage (leves), não mais base64 — cabem tranquilamente no rascunho do banco
   return {
     obraKey: obraAtual,
     savedAt: Date.now(),
@@ -824,7 +840,7 @@ function montarDados() {
     responsavel: document.getElementById('responsavel').value,
     transcricao: document.getElementById('transcricao').value,
     etapas: etapas,
-    ambFotos: ambFotos.filter(Boolean).map(a => ({nome: a.nome, fotos: []})),
+    ambFotos: ambFotos.filter(Boolean).map(a => ({nome: a.nome, fotos: (a.fotos||[]).filter(Boolean)})),
     qtdFotos: ambFotos.filter(Boolean).reduce((s,a) => s + (a.fotos||[]).filter(Boolean).length, 0),
     realizacoes: _realizacoes,
     previstos: _previstos,
@@ -996,7 +1012,7 @@ function exportJSON() {
     cidade: document.getElementById('cidade').value,
     responsavel: document.getElementById('responsavel').value,
     transcricao: document.getElementById('transcricao').value,
-    etapas: etapas.filter(Boolean).map(e => ({tipo:e.tipo,item:e.item,inicio:e.inicio,fim:e.fim,pct:e.pct,status:e.status||'',obs:e.obs||'',proximo:e.proximo||''})),
+    etapas: etapas.filter(Boolean).map(e => ({tipo:e.tipo,item:e.item,inicio:e.inicio,fim:e.fim,pct:e.pct,status:e.status||'',obs:e.obs||'',proximo:e.proximo||'',manual:e.manual||false,oculta:e.oculta||false})),
     ambFotos: ambFotos.filter(Boolean).map(a => ({nome:a.nome, fotos:(a.fotos||[]).filter(Boolean)})),
     realizacoes: limpa(_realizacoes),
     previstos: limpa(_previstos),
@@ -1030,7 +1046,7 @@ function loadJSON(input) {
         if(s.cliente) document.getElementById('cliente').value = s.cliente;
         if(s.cidade) document.getElementById('cidade').value = s.cidade;
         if(s.etapas && s.etapas.length) {
-          etapas = s.etapas.map(e => ({tipo:e.tipo,item:e.item,inicio:e.inicio||'',fim:e.fim||'',pct:e.pct||0,status:'',obs:'',proximo:''}));
+          etapas = s.etapas.map(e => ({tipo:e.tipo,item:e.item,inicio:e.inicio||'',fim:e.fim||'',pct:e.pct||0,status:(e.status==='na'?'na':''),obs:'',proximo:'',manual:e.manual||false,oculta:e.oculta||false}));
           renderEtapas();
         }
         _realizacoes = []; _previstos = []; _imprevistos = []; _observacoes = [];
@@ -1057,7 +1073,7 @@ function renderEtapas() {
   let ocultadas = 0;
   etapas.forEach((e,i) => {
     if(!e) return;
-    const isActive = e.status || e.obs || e.pct > 0 || e.tipo === 'Extra';
+    const isActive = e.status || e.obs || e.pct > 0 || e.tipo === 'Extra' || e.manual || e.oculta;
     if(!isActive && ocultarFuturas) {
       upcomingCount++;
       if(upcomingCount > 3) { ocultadas++; return; }
@@ -1093,18 +1109,23 @@ function appendEtapaBlock(idx, list) {
   const e = etapas[idx];
   if(!e) return;
   const div = document.createElement('div');
-  div.className = 'etapa-block';
+  div.className = 'etapa-block' + (e.oculta ? ' oculta' : '');
   div.id = 'etapa-'+idx;
   const sc = s => e.status===s ? 'sel' : '';
-  const sColor = {ok:'var(--green-ok)',pendente:'var(--amber)',alerta:'var(--red-alert)',semAlteracao:'var(--brown-light)',''  :'var(--gray-mid)'};
-  const sLabel = {ok:'✓ Avançou',pendente:'⚠ Pendências',alerta:'⚡ Problema',semAlteracao:'— Sem alt.',''  :''};
+  const sColor = {ok:'var(--green-ok)',pendente:'var(--amber)',alerta:'var(--red-alert)',semAlteracao:'var(--brown-light)',na:'var(--gray-mid)',''  :'var(--gray-mid)'};
+  const sLabel = {ok:'✓ Avançou',pendente:'⚠ Pendências',alerta:'⚡ Problema',semAlteracao:'— Sem alt.',na:'∅ Não se aplica',''  :''};
   const isOpen = !!(e.status || e.obs);
   const statusBadge = e.status ? '<span style="font-size:10px;font-weight:600;padding:2px 7px;border-radius:2px;background:'+sColor[e.status]+'20;color:'+sColor[e.status]+';">'+sLabel[e.status]+'</span>' : '';
-  const pctBadge = e.pct > 0 ? '<span style="font-size:11px;font-weight:700;color:'+(sColor[e.status]||'var(--brown-light)')+';">'+e.pct+'%</span>' : '';
+  const pctBadge = (e.pct > 0 && e.status !== 'na') ? '<span style="font-size:11px;font-weight:700;color:'+(sColor[e.status]||'var(--brown-light)')+';">'+e.pct+'%</span>' : '';
+  const ocultaBadge = e.oculta ? '<span class="badge-oculta" title="Não aparece no relatório do cliente">🚫 Oculta</span>' : '';
+  const nomeEsc = (e.item||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+  const TIPOS = ['Civil','Marcenaria','Marmoraria','Vidraçaria','Churrasqueira','Decor','Extra'];
+  if(e.tipo && !TIPOS.includes(e.tipo)) TIPOS.push(e.tipo);
+  const tipoOpts = TIPOS.map(t => '<option'+(t===e.tipo?' selected':'')+'>'+t+'</option>').join('');
   div.innerHTML =
     '<div class="etapa-header-row" onclick="toggleEtapa('+idx+')">' +
-      '<span style="font-size:13px;font-weight:600;flex:1;">'+e.item+'</span>' +
-      statusBadge + pctBadge +
+      '<input type="text" class="etapa-nome-input" value="'+nomeEsc+'" title="Clique para editar o nome" onclick="event.stopPropagation()" oninput="etapas['+idx+'].item=this.value">' +
+      ocultaBadge + statusBadge + pctBadge +
       '<span class="etapa-tipo-badge">'+e.tipo+'</span>' +
       '<span class="etapa-chevron'+(isOpen?' open':'')+'">▼</span>' +
     '</div>' +
@@ -1112,12 +1133,14 @@ function appendEtapaBlock(idx, list) {
       '<div class="date-row">' +
         '<div><label>Início</label><input type="text" value="'+(e.inicio||'')+'" placeholder="DD/MM" oninput="etapas['+idx+'].inicio=this.value"></div>' +
         '<div><label>Fim</label><input type="text" value="'+(e.fim||'')+'" placeholder="DD/MM" oninput="etapas['+idx+'].fim=this.value"></div>' +
+        '<div><label>Grupo</label><select style="margin-bottom:0;font-size:12px;padding:6px 10px;" onchange="mudarTipoEtapa('+idx+',this.value)">'+tipoOpts+'</select></div>' +
       '</div>' +
       '<div class="status-row">' +
         '<span class="tag tag-ok '+sc('ok')+'" onclick="setStatus('+idx+',\'ok\',this)">✓ Avançou</span>' +
         '<span class="tag tag-pen '+sc('pendente')+'" onclick="setStatus('+idx+',\'pendente\',this)">⚠ Pendências</span>' +
         '<span class="tag tag-ref '+sc('alerta')+'" onclick="setStatus('+idx+',\'alerta\',this)">⚡ Problema</span>' +
         '<span class="tag tag-sa '+sc('semAlteracao')+'" onclick="setStatus('+idx+',\'semAlteracao\',this)">— Sem alterações</span>' +
+        '<span class="tag tag-na '+sc('na')+'" onclick="setStatus('+idx+',\'na\',this)">∅ Não se aplica</span>' +
       '</div>' +
       '<label>Observações</label>' +
       '<textarea placeholder="O que aconteceu nesta etapa..." oninput="etapas['+idx+'].obs=this.value">'+(e.obs||'')+'</textarea>' +
@@ -1128,11 +1151,72 @@ function appendEtapaBlock(idx, list) {
         '<input type="number" min="0" max="100" value="'+(e.pct||0)+'" oninput="etapas['+idx+'].pct=parseInt(this.value)||0;var v=Math.min(100,Math.max(0,parseInt(this.value)||0));document.getElementById(\'pb-'+idx+'\').style.width=v+\'%\'">' +
         '<div class="progress-bar"><div class="progress-fill" id="pb-'+idx+'" style="width:'+(e.pct||0)+'%"></div></div>' +
       '</div>' +
-      '<div style="display:flex;justify-content:flex-end;margin-top:8px;">' +
+      '<div class="mover-row">' +
+        '<button class="btn-mover" onclick="moverParaExtremoGrupo('+idx+',\'topo\')" title="Ir para o topo do grupo">⇈ Topo do grupo</button>' +
+        '<button class="btn-mover" onclick="moverEtapa('+idx+',-1)" title="Mover para cima">▲ Subir</button>' +
+        '<button class="btn-mover" onclick="moverEtapa('+idx+',1)" title="Mover para baixo">▼ Descer</button>' +
+        '<button class="btn-mover" onclick="moverParaExtremoGrupo('+idx+',\'fim\')" title="Ir para o fim do grupo">⇊ Fim do grupo</button>' +
+      '</div>' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">' +
+        '<button class="btn-ocultar'+(e.oculta?' ativa':'')+'" onclick="toggleOcultarEtapa('+idx+')" title="Etapas ocultas não aparecem em lugar nenhum do relatório do cliente">'+(e.oculta ? '👁 Mostrar no relatório' : '🚫 Ocultar do relatório')+'</button>' +
         '<button class="btn-remove" onclick="removeEtapa('+idx+')">× Remover</button>' +
       '</div>' +
     '</div>';
   list.appendChild(div);
+}
+
+function toggleOcultarEtapa(idx) {
+  if(!etapas[idx]) return;
+  etapas[idx].oculta = !etapas[idx].oculta;
+  renderEtapas();
+  if(document.getElementById('body-'+idx) && !document.getElementById('body-'+idx).classList.contains('open')) toggleEtapa(idx);
+  saveDraft();
+}
+
+function mudarTipoEtapa(idx, tipo) {
+  if(!etapas[idx]) return;
+  etapas[idx].tipo = tipo;
+  etapas[idx].manual = true; // continua sempre visível na lista
+  const aberta = document.getElementById('body-'+idx)?.classList.contains('open');
+  renderEtapas();
+  if(aberta) toggleEtapa(idx);
+  saveDraft();
+}
+
+function moverEtapa(idx, dir) {
+  if(!etapas[idx]) return;
+  // encontra a etapa vizinha (do mesmo array, pulando removidas)
+  let alvo = idx + dir;
+  while(alvo >= 0 && alvo < etapas.length && !etapas[alvo]) alvo += dir;
+  if(alvo < 0 || alvo >= etapas.length) return;
+  // assume o grupo da vizinha para a mudança fazer sentido visual
+  etapas[idx].tipo = etapas[alvo].tipo || etapas[idx].tipo;
+  etapas[idx].manual = true;
+  const tmp = etapas[alvo];
+  etapas[alvo] = etapas[idx];
+  etapas[idx] = tmp;
+  renderEtapas();
+  if(document.getElementById('body-'+alvo) && !document.getElementById('body-'+alvo).classList.contains('open')) toggleEtapa(alvo);
+  saveDraft();
+}
+
+/* Pula direto para o topo/fim do próprio grupo — sem precisar clicar Subir/Descer várias vezes */
+function moverParaExtremoGrupo(idx, posicao) {
+  if(!etapas[idx]) return;
+  const tipo = etapas[idx].tipo;
+  const item = etapas[idx];
+  item.manual = true;
+  etapas.splice(idx, 1);
+  const mesmoTipo = [];
+  etapas.forEach((e,i) => { if(e && e.tipo === tipo) mesmoTipo.push(i); });
+  let alvoIdx;
+  if(!mesmoTipo.length) alvoIdx = posicao === 'topo' ? 0 : etapas.length;
+  else if(posicao === 'topo') alvoIdx = mesmoTipo[0];
+  else alvoIdx = mesmoTipo[mesmoTipo.length - 1] + 1;
+  etapas.splice(alvoIdx, 0, item);
+  renderEtapas();
+  if(document.getElementById('body-'+alvoIdx) && !document.getElementById('body-'+alvoIdx).classList.contains('open')) toggleEtapa(alvoIdx);
+  saveDraft();
 }
 
 function toggleEtapa(idx) {
@@ -1146,8 +1230,8 @@ function setStatus(idx, status, el) {
   etapas[idx].status = status;
   document.getElementById('etapa-'+idx).querySelectorAll('.tag').forEach(t => t.classList.remove('sel'));
   el.classList.add('sel');
-  const sColor = {ok:'var(--green-ok)',pendente:'var(--amber)',alerta:'var(--red-alert)',semAlteracao:'var(--brown-light)'};
-  const sLabel = {ok:'✓ Avançou',pendente:'⚠ Pendências',alerta:'⚡ Problema',semAlteracao:'— Sem alt.'};
+  const sColor = {ok:'var(--green-ok)',pendente:'var(--amber)',alerta:'var(--red-alert)',semAlteracao:'var(--brown-light)',na:'var(--gray-mid)'};
+  const sLabel = {ok:'✓ Avançou',pendente:'⚠ Pendências',alerta:'⚡ Problema',semAlteracao:'— Sem alt.',na:'∅ Não se aplica'};
   const row = document.querySelector('#etapa-'+idx+' .etapa-header-row');
   let badge = row.querySelector('.status-badge-dyn');
   if(!badge) { badge = document.createElement('span'); badge.className='status-badge-dyn'; row.insertBefore(badge, row.querySelector('.etapa-tipo-badge')); }
@@ -1159,12 +1243,14 @@ function removeEtapa(idx) { document.getElementById('etapa-'+idx)?.remove(); eta
 
 function addEtapaManual() {
   const idx = etapas.length;
-  etapas.push({tipo:'Extra',item:'Nova etapa',inicio:'',fim:'',status:'',obs:'',proximo:'',pct:0});
+  etapas.push({tipo:'Extra',item:'',inicio:'',fim:'',status:'',obs:'',proximo:'',pct:0,manual:true});
   const list = document.getElementById('etapasList');
   const gh = document.createElement('div'); gh.className='grupo-header'; gh.textContent='Extra';
   list.appendChild(gh);
   appendEtapaBlock(idx, list);
   toggleEtapa(idx);
+  const inp = document.querySelector('#etapa-'+idx+' .etapa-nome-input');
+  if(inp) { inp.placeholder = 'Digite o nome da etapa'; inp.focus(); }
 }
 
 /* ── PENDÊNCIAS / IMPREVISTOS / OBSERVAÇÕES ───────────────────────── */
@@ -1271,7 +1357,7 @@ async function processarIA() {
   const st = document.getElementById('iaStatus');
   st.innerHTML = '<div class="loading"><div class="spinner"></div> Processando com IA...</div>';
   const nomesEtapas = etapas.filter(Boolean).map(e => e.item);
-  const prompt = 'Você é assistente de Suzana Bonolo Interiores. Analise esta transcrição de visita de obra e classifique TODAS as informações mencionadas.\n\nETAPAS DO CRONOGRAMA DESTA OBRA (a única lista válida):\n- ' + nomesEtapas.join('\n- ') + '\n\nTranscrição:\n"""'+texto+'"""\n\nRetorne APENAS JSON válido sem texto extra:\n{"etapas":[{"nome":"nome EXATO copiado da lista acima","status":"ok|pendente|alerta|semAlteracao","obs":"observação curta","proximo":"próxima semana"}],"realizacoes":["item curto"],"previstos":["item curto"],"pendencias":["item curto"],"imprevistos":["item curto"],"observacoes":["item curto"]}\n\nRegras:\n- REGRA MAIS IMPORTANTE: é PROIBIDO descartar informações. Toda informação da transcrição deve aparecer em pelo menos um campo do JSON. Se não souber onde classificar, coloque em observacoes — nunca omita.\n- 2ª REGRA MAIS IMPORTANTE: em "etapas", use SOMENTE nomes copiados exatamente da lista do cronograma acima. É PROIBIDO inventar etapa que não está na lista. Se a transcrição menciona um serviço que NÃO corresponde a nenhuma etapa da lista (mesmo parecido), NÃO o coloque em "etapas" — coloque a informação em realizacoes, previstos, pendencias, imprevistos ou observacoes, citando o nome do serviço no texto do item (ex: "Impermeabilização em andamento").\n- etapas: status ok=avançou normalmente, pendente=tem pendências, alerta=problema ou retrabalho, semAlteracao=sem movimento\n- pendencias: o que falta fazer ou ficou incompleto (ex: "falta abrir os nichos da parede do banheiro")\n- imprevistos: descobertas ou serviços novos que não estavam planejados (ex: "parede extra da cozinha precisou ser demolida")\n- observacoes: fatos do canteiro que não são tarefa nem problema (ex: "bancada da churrasqueira servindo de apoio para a obra")\n- realizacoes: o que foi concluído na semana (máximo 5)\n- previstos: o que vem nas próximas semanas, com datas quando citadas (máximo 5)\n- Itens curtos e específicos, máximo 15 palavras cada\n- Obs e proximo das etapas: máximo 12 palavras cada\n- Tudo em português';
+  const prompt = 'Você é assistente de Suzana Bonolo Interiores. Analise esta transcrição de visita de obra e classifique TODAS as informações mencionadas.\n\nETAPAS DO CRONOGRAMA DESTA OBRA (a única lista válida):\n- ' + nomesEtapas.join('\n- ') + '\n\nTranscrição:\n"""'+texto+'"""\n\nRetorne APENAS JSON válido sem texto extra:\n{"etapas":[{"nome":"nome EXATO copiado da lista acima","status":"ok|pendente|alerta|semAlteracao","obs":"observação curta","proximo":"próxima semana"}],"realizacoes":["item curto"],"previstos":["item curto"],"pendencias":["item curto"],"imprevistos":["item curto"],"observacoes":["item curto"]}\n\nRegras:\n- REGRA MAIS IMPORTANTE: é PROIBIDO descartar informações. Toda informação da transcrição deve aparecer em pelo menos um campo do JSON. Se não souber onde classificar, coloque em observacoes — nunca omita.\n- 2ª REGRA MAIS IMPORTANTE: em "etapas", use SOMENTE nomes copiados exatamente da lista do cronograma acima. É PROIBIDO inventar etapa que não está na lista. Se a transcrição menciona um serviço que NÃO corresponde a nenhuma etapa da lista (mesmo parecido), NÃO o coloque em "etapas" — coloque a informação em realizacoes, previstos, pendencias, imprevistos ou observacoes, citando o nome do serviço no texto do item (ex: "Impermeabilização em andamento").\n- 3ª REGRA MAIS IMPORTANTE: NUNCA repita a mesma informação em mais de um lugar (a única exceção é realizacoes, que resume o que foi concluído). Se a informação pertence a uma etapa da lista, preencha a etapa (obs/proximo) e NÃO a repita em previstos, pendencias ou observacoes. previstos é APENAS para o que não pertence a nenhuma etapa da lista. Um mesmo assunto JAMAIS aparece em pendencias E previstos ao mesmo tempo — escolha o campo mais adequado (se falta fazer, é pendência; se está agendado, é previsto).\n- Alvenaria, paredes novas e reforços de drywall pertencem à etapa "Construção" quando ela estiver na lista e não houver etapa mais específica. Impermeabilização pertence à etapa de impermeabilização se existir na lista; se não existir, pertence à "Construção".\n- etapas: status ok=avançou normalmente, pendente=tem pendências, alerta=problema ou retrabalho, semAlteracao=sem movimento\n- pendencias: o que falta fazer ou ficou incompleto (ex: "falta abrir os nichos da parede do banheiro")\n- imprevistos: descobertas ou serviços novos que não estavam planejados (ex: "parede extra da cozinha precisou ser demolida")\n- observacoes: fatos do canteiro que não são tarefa nem problema (ex: "bancada da churrasqueira servindo de apoio para a obra")\n- realizacoes: o que foi concluído na semana (máximo 5)\n- previstos: o que vem nas próximas semanas, com datas quando citadas (máximo 5)\n- Itens curtos e específicos, máximo 15 palavras cada\n- Obs e proximo das etapas: máximo 12 palavras cada\n- Tudo em português';
   try {
     const resp = await fetch('/api/chat', {
       method:'POST', headers:{'Content-Type':'application/json'},
@@ -1307,6 +1393,19 @@ async function processarIA() {
         if(!obs && !proximo && !jaTem(_observacoes, nome)) _observacoes.push(nome + (status === 'ok' ? ' em andamento' : ''));
       }
     });
+    // Rede de segurança: remove repetições mesmo se a IA desobedecer
+    const chave = s => (s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9 ]/g,' ').replace(/\s+/g,' ').trim().substring(0,18);
+    const dedupe = arr => { const vistos = new Set(); return arr.filter(x => { const k = chave(x); if(!k || vistos.has(k)) return false; vistos.add(k); return true; }); };
+    _realizacoes = dedupe(_realizacoes);
+    _pendencias = dedupe(_pendencias);
+    _imprevistos = dedupe(_imprevistos);
+    const kPend = new Set(_pendencias.map(chave));
+    const kImpr = new Set(_imprevistos.map(chave));
+    const kProx = new Set(etapas.filter(Boolean).map(e => chave(e.proximo)).filter(k => k));
+    const kObsE = new Set(etapas.filter(Boolean).map(e => chave(e.obs)).filter(k => k));
+    _previstos = dedupe(_previstos).filter(x => { const k = chave(x); return !kPend.has(k) && !kImpr.has(k) && !kProx.has(k); });
+    const kPrev = new Set(_previstos.map(chave));
+    _observacoes = dedupe(_observacoes).filter(x => { const k = chave(x); return !kPend.has(k) && !kPrev.has(k) && !kImpr.has(k) && !kProx.has(k) && !kObsE.has(k); });
     renderEtapas();
     renderListas();
     saveDraft();
@@ -1327,10 +1426,10 @@ function addAmbFoto(nome) {
       '<input type="text" value="'+nome+'" placeholder="Ambiente" style="margin-bottom:0;font-family:\'Cormorant Garamond\',serif;font-size:17px;font-weight:500;background:transparent;border:none;border-bottom:1px solid var(--salmon-light);border-radius:0;padding:2px 0;width:220px;" oninput="ambFotos['+idx+'].nome=this.value">' +
       '<button class="btn-remove" onclick="removeAmbFoto('+idx+')">× Remover</button>' +
     '</div>' +
-    '<div class="foto-area" onclick="document.getElementById(\'fi-'+idx+'\').click()">' +
-      '<input type="file" id="fi-'+idx+'" accept="image/*" multiple onchange="handleFotos('+idx+',this)">' +
+    '<div class="foto-area" id="fa-'+idx+'" onclick="document.getElementById(\'fi-'+idx+'\').click()">' +
+      '<input type="file" id="fi-'+idx+'" accept="image/*,.heic,.heif" multiple onchange="handleFotos('+idx+',this)">' +
       '<div style="font-size:20px;margin-bottom:4px;">📸</div>' +
-      '<div style="font-size:12px;color:var(--brown-light);"><strong style="color:var(--salmon);">Adicionar fotos</strong> · JPG, PNG, HEIC</div>' +
+      '<div style="font-size:12px;color:var(--brown-light);" id="fa-label-'+idx+'"><strong style="color:var(--salmon);">Adicionar fotos</strong> · JPG, PNG, HEIC</div>' +
     '</div>' +
     '<div class="fotos-grid" id="fg-'+idx+'"></div>';
   list.appendChild(div);
@@ -1338,58 +1437,119 @@ function addAmbFoto(nome) {
 
 function removeAmbFoto(idx) { document.getElementById('af-'+idx)?.remove(); ambFotos[idx]=null; }
 
-function handleFotos(idx, input) {
-  const grid = document.getElementById('fg-'+idx);
-  Array.from(input.files).forEach(file => {
-    const url = URL.createObjectURL(file);
+function slugify(s) {
+  return (s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'') || 'ambiente';
+}
+
+function ehHeic(file) {
+  return /\.(heic|heif)$/i.test(file.name||'') || /heic|heif/i.test(file.type||'');
+}
+
+/* Redimensiona (e converte para JPEG) usando canvas. Pode ser sobrescrita em testes. */
+function redimensionarFoto(blob) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(blob);
     const img = new Image();
     img.onload = () => {
-      const canvas = document.createElement('canvas');
-      const maxW = 1200;
-      const scale = img.width > maxW ? maxW/img.width : 1;
-      canvas.width = img.width*scale; canvas.height = img.height*scale;
-      canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
-      const jpeg = canvas.toDataURL('image/jpeg', 0.85);
-      URL.revokeObjectURL(url);
-      const fi = ambFotos[idx].fotos.length;
-      ambFotos[idx].fotos.push(jpeg);
-      const w = document.createElement('div'); w.className='foto-wrap'; w.id='fw-'+idx+'-'+fi;
-      w.innerHTML = '<img class="foto-thumb" src="'+jpeg+'"><button class="foto-del" onclick="delFoto('+idx+','+fi+')">×</button>';
-      grid.appendChild(w);
-      saveDraft();
+      try {
+        const canvas = document.createElement('canvas');
+        const maxW = 1200;
+        const scale = img.width > maxW ? maxW/img.width : 1;
+        canvas.width = Math.round(img.width*scale); canvas.height = Math.round(img.height*scale);
+        canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+        URL.revokeObjectURL(url);
+        canvas.toBlob(b => b ? resolve(b) : reject(new Error('Falha ao converter imagem')), 'image/jpeg', 0.85);
+      } catch(e) { URL.revokeObjectURL(url); reject(e); }
     };
-    img.onerror = () => {
-      const reader = new FileReader();
-      reader.onload = e => {
-        const fi = ambFotos[idx].fotos.length;
-        ambFotos[idx].fotos.push(e.target.result);
-        const w = document.createElement('div'); w.className='foto-wrap'; w.id='fw-'+idx+'-'+fi;
-        w.innerHTML = '<img class="foto-thumb" src="'+e.target.result+'"><button class="foto-del" onclick="delFoto('+idx+','+fi+')">×</button>';
-        document.getElementById('fg-'+idx).appendChild(w);
-        saveDraft();
-      };
-      reader.readAsDataURL(file);
-    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Formato de imagem não suportado pelo navegador')); };
     img.src = url;
   });
 }
 
-function delFoto(a,f) { ambFotos[a].fotos[f]=null; document.getElementById('fw-'+a+'-'+f)?.remove(); }
+async function handleFotos(idx, input) {
+  const arquivos = Array.from(input.files);
+  input.value = ''; // permite selecionar o mesmo arquivo de novo depois
+  if(!arquivos.length) return;
+  const area = document.getElementById('fa-'+idx);
+  const label = document.getElementById('fa-label-'+idx);
+  if(area) area.classList.add('enviando');
+  let i = 0;
+  for(const file of arquivos) {
+    i++;
+    if(label) label.innerHTML = '<strong style="color:var(--salmon);">Enviando '+i+'/'+arquivos.length+'...</strong>';
+    await processarFoto(idx, file);
+  }
+  if(area) area.classList.remove('enviando');
+  if(label) label.innerHTML = '<strong style="color:var(--salmon);">Adicionar fotos</strong> · JPG, PNG, HEIC';
+}
+
+async function processarFoto(idx, file) {
+  const grid = document.getElementById('fg-'+idx);
+  const fi = ambFotos[idx].fotos.length;
+  ambFotos[idx].fotos.push(null); // reserva a posição
+  const w = document.createElement('div'); w.className = 'foto-wrap'; w.id = 'fw-'+idx+'-'+fi;
+  w.innerHTML = '<div class="foto-thumb-status">⏳</div>';
+  grid.appendChild(w);
+  try {
+    let blob = file;
+    if(ehHeic(file)) {
+      if(!window.heic2any) throw new Error('Conversor de HEIC não carregou (verifique a internet e recarregue a página)');
+      const convertido = await window.heic2any({ blob: file, toType: 'image/jpeg', quality: 0.85 });
+      blob = Array.isArray(convertido) ? convertido[0] : convertido;
+    }
+    const jpeg = await redimensionarFoto(blob);
+    const pasta = obraAtual + '/' + new Date().toISOString().slice(0,10) + '/' + slugify(ambFotos[idx].nome) + '/';
+    const nomeArq = Date.now() + '-' + Math.random().toString(36).slice(2,8) + '.jpg';
+    const caminho = pasta + nomeArq;
+    if(!sb) throw new Error('Sem conexão com o servidor');
+    const { error: upErr } = await sb.storage.from('fotos').upload(caminho, jpeg, { contentType: 'image/jpeg', upsert: false });
+    if(upErr) throw upErr;
+    const { data } = sb.storage.from('fotos').getPublicUrl(caminho);
+    const url = data.publicUrl;
+    ambFotos[idx].fotos[fi] = url;
+    w.innerHTML = '<img class="foto-thumb" src="'+url+'"><button class="foto-del" onclick="delFoto('+idx+','+fi+')">×</button>';
+    saveDraft();
+  } catch(e) {
+    ambFotos[idx].fotos[fi] = null;
+    w.innerHTML = '<div class="foto-thumb-status erro" title="Falha ao enviar: '+String(e.message||e).replace(/"/g,'')+'. Toque para remover e tentar de novo." onclick="removerFotoFalha('+idx+','+fi+')">⚠️</div>';
+  }
+}
+
+function removerFotoFalha(idx, fi) {
+  document.getElementById('fw-'+idx+'-'+fi)?.remove();
+  if(ambFotos[idx]) ambFotos[idx].fotos[fi] = null;
+}
+
+async function delFoto(a, f) {
+  const url = ambFotos[a] ? ambFotos[a].fotos[f] : null;
+  document.getElementById('fw-'+a+'-'+f)?.remove();
+  if(ambFotos[a]) ambFotos[a].fotos[f] = null;
+  saveDraft();
+  if(url && sb && url.includes('/object/public/fotos/')) {
+    try {
+      const caminho = decodeURIComponent(url.split('/object/public/fotos/')[1]);
+      await sb.storage.from('fotos').remove([caminho]);
+    } catch(e) {} // remoção é best-effort; não bloqueia a usuária
+  }
+}
 
 /* ── REVIEW ───────────────────────────────────────────────────────── */
 function buildReview() {
   const et = etapas.filter(Boolean);
   const af = ambFotos.filter(Boolean);
   const totalF = af.reduce((s,a) => s+(a.fotos.filter(Boolean).length), 0);
-  const sIcon = {ok:'🟢',pendente:'🟡',alerta:'🔴',semAlteracao:'⚪',''  :'⚫'};
+  const sIcon = {ok:'🟢',pendente:'🟡',alerta:'🔴',semAlteracao:'⚪',na:'∅',''  :'⚫'};
   const obra = OBRAS_CATALOG[obraAtual];
   let html = '<div class="review-section"><div class="review-label">Identificação</div>' +
     '<div class="review-item"><span class="review-icon">🏗️</span><div class="review-text"><strong>'+(obra?.label||'—')+'</strong><span>'+
     (document.getElementById('cliente').value||'—')+' · Semana '+(document.getElementById('semana').value||'—')+' · '+(document.getElementById('responsavel').value||'—')+'</span></div></div></div>' +
     '<div class="review-section"><div class="review-label">Etapas com status ('+et.filter(e=>e.status).length+')</div>';
-  et.filter(e=>e.status).forEach(e => { html += '<div class="review-item"><span class="review-icon">'+(sIcon[e.status]||'⚫')+'</span><div class="review-text"><strong>'+e.item+'</strong><span>'+(e.obs||'Sem observações')+'</span></div></div>'; });
+  et.filter(e=>e.status).forEach(e => { const tagOculta = e.oculta ? ' <span class="badge-oculta" style="margin-left:6px;">🚫 Oculta do relatório</span>' : ''; html += '<div class="review-item"><span class="review-icon">'+(sIcon[e.status]||'⚫')+'</span><div class="review-text"><strong>'+e.item+tagOculta+'</strong><span>'+(e.obs||'Sem observações')+'</span></div></div>'; });
   if(!et.filter(e=>e.status).length) html += '<div class="alert-box">⚠️ Nenhuma etapa com status definido.</div>';
   html += '</div>';
+
+  const ocultas = et.filter(e => e.oculta);
+  if(ocultas.length) html += '<div class="alert-box">🚫 '+ocultas.length+' etapa(s) marcada(s) para NÃO aparecer no relatório do cliente: '+ocultas.map(e=>e.item).join(', ')+'.</div>';
 
   const real = _realizacoes.filter(x => x!==null && x!=='');
   const prev = _previstos.filter(x => x!==null && x!=='');
@@ -1423,8 +1583,8 @@ function buildExport() {
   document.getElementById('expSemana').textContent = (obra?.label||'')+' · Semana '+semana+(cidade?' · '+cidade:'');
   const et = etapas.filter(Boolean);
   const af = ambFotos.filter(Boolean);
-  const sc = {ok:'var(--green-ok)',pendente:'var(--amber)',alerta:'var(--red-alert)',semAlteracao:'var(--brown-light)',''  :'var(--brown-light)'};
-  const sl = {ok:'Avançou',pendente:'Pendências',alerta:'Problema / Ajuste',semAlteracao:'Sem alterações',''  :'—'};
+  const sc = {ok:'var(--green-ok)',pendente:'var(--amber)',alerta:'var(--red-alert)',semAlteracao:'var(--brown-light)',na:'var(--gray-mid)',''  :'var(--brown-light)'};
+  const sl = {ok:'Avançou',pendente:'Pendências',alerta:'Problema / Ajuste',semAlteracao:'Sem alterações',na:'Não se aplica',''  :'—'};
   let body = '';
 
   const h2exp = t => '<h2 style="font-family:Cormorant Garamond,serif;font-size:20px;font-weight:400;color:var(--brown-dark);margin-bottom:12px;padding-bottom:6px;border-bottom:1px solid var(--gray-mid);margin-top:28px;">'+t+'</h2>';
@@ -1441,7 +1601,7 @@ function buildExport() {
     body += listaExp(realExp, 'var(--salmon)');
   }
 
-  const etAtivas = et.filter(e => e.status||e.obs);
+  const etAtivas = et.filter(e => (e.status||e.obs) && e.status!=='na' && !e.oculta);
   if(etAtivas.length) {
     body += h2exp('Acompanhamento de Etapas');
     const grupos = {};
@@ -1476,10 +1636,11 @@ function buildExport() {
 
   if(obsvExp.length) { body += h2exp('Observações'); body += listaExp(obsvExp, 'var(--brown-light)'); }
 
-  const total = et.length;
-  const conc = et.filter(e=>e.pct===100).length;
-  const and = et.filter(e=>e.pct>0&&e.pct<100).length;
-  const pctG = total ? Math.round(et.reduce((s,e)=>s+(e.pct||0),0)/total) : 0;
+  const validas = et.filter(e => e.status !== 'na' && !e.oculta);
+  const total = validas.length;
+  const conc = validas.filter(e=>e.pct===100).length;
+  const and = validas.filter(e=>e.pct>0&&e.pct<100).length;
+  const pctG = total ? Math.round(validas.reduce((s,e)=>s+(e.pct||0),0)/total) : 0;
   body += h2exp('Visão Geral do Cronograma');
   body += '<div style="background:var(--off-white);border-radius:4px;padding:16px;margin-bottom:16px;">' +
     '<div style="display:flex;gap:20px;margin-bottom:12px;font-size:12px;">' +
@@ -1498,8 +1659,11 @@ function buildExport() {
     '<th style="padding:7px 10px;text-align:left;font-weight:600;letter-spacing:.06em;text-transform:uppercase;font-size:10px;color:var(--brown-mid);">%</th>' +
     '</tr></thead><tbody>';
   et.forEach(e => {
-    const c = e.pct===100?'var(--green-ok)':e.pct>0?'var(--amber)':'var(--brown-mid)';
-    body += '<tr><td style="padding:7px 10px;border-bottom:1px solid var(--gray-light);">'+e.item+'</td><td style="padding:7px 10px;border-bottom:1px solid var(--gray-light);color:var(--brown-light);">'+e.tipo+'</td><td style="padding:7px 10px;border-bottom:1px solid var(--gray-light);">'+(e.inicio||'—')+'</td><td style="padding:7px 10px;border-bottom:1px solid var(--gray-light);">'+(e.fim||'—')+'</td><td style="padding:7px 10px;border-bottom:1px solid var(--gray-light);color:'+c+';font-weight:700;">'+e.pct+'%</td></tr>';
+    if(e.oculta) return; // oculta = some de vez do relatório do cliente, nem como linha
+    const ehNA = e.status === 'na';
+    const c = ehNA ? 'var(--brown-light)' : e.pct===100?'var(--green-ok)':e.pct>0?'var(--amber)':'var(--brown-mid)';
+    const estiloNA = ehNA ? 'opacity:.55;' : '';
+    body += '<tr style="'+estiloNA+'"><td style="padding:7px 10px;border-bottom:1px solid var(--gray-light);">'+e.item+'</td><td style="padding:7px 10px;border-bottom:1px solid var(--gray-light);color:var(--brown-light);">'+e.tipo+'</td><td style="padding:7px 10px;border-bottom:1px solid var(--gray-light);">'+(ehNA?'—':(e.inicio||'—'))+'</td><td style="padding:7px 10px;border-bottom:1px solid var(--gray-light);">'+(ehNA?'—':(e.fim||'—'))+'</td><td style="padding:7px 10px;border-bottom:1px solid var(--gray-light);color:'+c+';font-weight:700;">'+(ehNA?'n/a':e.pct+'%')+'</td></tr>';
   });
   body += '</tbody></table>';
 
