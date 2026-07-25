@@ -333,7 +333,10 @@ textarea{resize:vertical;min-height:72px;}
   <div class="sec-title" style="margin-top:24px;">Etapas da Obra</div>
   <div class="sec-sub">Clique em cada etapa para expandir e atualizar.</div>
   <div id="etapasList"></div>
-  <button class="btn-add" onclick="addEtapaManual()">+ Adicionar etapa não prevista</button>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;">
+    <button class="btn-add" style="margin-top:0;flex:1;" onclick="addEtapaManual()">+ Adicionar etapa não prevista</button>
+    <button class="btn-add" style="margin-top:0;flex:1;" onclick="ordenarTodosPorData()" title="Reordena as etapas de cada grupo pela data de Início preenchida">🔃 Reordenar por data de início</button>
+  </div>
 
   <div class="sec-title" style="margin-top:24px;">Resumo da Semana</div>
   <div class="sec-sub">Preenchido pela IA a partir do áudio. O relatório usa exatamente o que estiver aqui — edite à vontade.</div>
@@ -1131,7 +1134,7 @@ function appendEtapaBlock(idx, list) {
     '</div>' +
     '<div class="etapa-body'+(isOpen?' open':'')+'" id="body-'+idx+'">' +
       '<div class="date-row">' +
-        '<div><label>Início</label><input type="text" value="'+(e.inicio||'')+'" placeholder="DD/MM" oninput="etapas['+idx+'].inicio=this.value"></div>' +
+        '<div><label>Início</label><input type="text" value="'+(e.inicio||'')+'" placeholder="DD/MM" oninput="etapas['+idx+'].inicio=this.value" onchange="ordenarGrupoPorDataEAtualizar('+idx+')"></div>' +
         '<div><label>Fim</label><input type="text" value="'+(e.fim||'')+'" placeholder="DD/MM" oninput="etapas['+idx+'].fim=this.value"></div>' +
         '<div><label>Grupo</label><select style="margin-bottom:0;font-size:12px;padding:6px 10px;" onchange="mudarTipoEtapa('+idx+',this.value)">'+tipoOpts+'</select></div>' +
       '</div>' +
@@ -1197,6 +1200,52 @@ function moverEtapa(idx, dir) {
   etapas[idx] = tmp;
   renderEtapas();
   if(document.getElementById('body-'+alvo) && !document.getElementById('body-'+alvo).classList.contains('open')) toggleEtapa(alvo);
+  saveDraft();
+}
+
+/* Converte "DD/MM" em número comparável (MM*100+DD). Retorna null se vazio/inválido. */
+function parseDataBR(s) {
+  const m = String(s||'').trim().match(/^(\d{1,2})\/(\d{1,2})/);
+  if(!m) return null;
+  const dia = parseInt(m[1],10), mes = parseInt(m[2],10);
+  if(!dia || !mes || mes<1 || mes>12 || dia<1 || dia>31) return null;
+  return mes*100 + dia;
+}
+
+/* Reordena só as etapas de UM grupo (tipo) pela data de Início, sem tocar nos outros grupos.
+   Etapas sem data preenchida vão para o fim do grupo. Empates mantêm a ordem atual (estável). */
+function ordenarGrupoPorData(tipo) {
+  const posicoes = [];
+  etapas.forEach((e,i) => { if(e && e.tipo === tipo) posicoes.push(i); });
+  if(posicoes.length < 2) return;
+  const itens = posicoes.map((i, ordemOriginal) => ({ item: etapas[i], ordemOriginal }));
+  itens.sort((a,b) => {
+    const da = parseDataBR(a.item.inicio), db = parseDataBR(b.item.inicio);
+    if(da === null && db === null) return a.ordemOriginal - b.ordemOriginal;
+    if(da === null) return 1;
+    if(db === null) return -1;
+    if(da !== db) return da - db;
+    return a.ordemOriginal - b.ordemOriginal;
+  });
+  posicoes.forEach((i, k) => { etapas[i] = itens[k].item; });
+}
+
+/* Disparado ao editar o campo Início de uma etapa: reordena só o grupo dela e reabre o mesmo painel */
+function ordenarGrupoPorDataEAtualizar(idx) {
+  const alvo = etapas[idx];
+  if(!alvo) return;
+  ordenarGrupoPorData(alvo.tipo);
+  renderEtapas();
+  const novoIdx = etapas.indexOf(alvo);
+  if(novoIdx >= 0 && document.getElementById('body-'+novoIdx) && !document.getElementById('body-'+novoIdx).classList.contains('open')) toggleEtapa(novoIdx);
+  saveDraft();
+}
+
+/* Botão manual: reordena TODOS os grupos pela data de Início de uma vez (útil ao importar obra antiga) */
+function ordenarTodosPorData() {
+  const tipos = [...new Set(etapas.filter(Boolean).map(e => e.tipo))];
+  tipos.forEach(t => ordenarGrupoPorData(t));
+  renderEtapas();
   saveDraft();
 }
 
