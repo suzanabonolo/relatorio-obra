@@ -104,6 +104,9 @@ textarea{resize:vertical;min-height:72px;}
 .btn-ocultar.ativa{border-color:var(--red-alert);color:var(--red-alert);background:#FAEAEA;}
 .btn-ocultar:hover{border-color:var(--salmon);color:var(--salmon);}
 .mover-row{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;}
+.amb-nome-input{flex:0 1 auto;margin-bottom:0!important;background:transparent!important;border:none!important;border-bottom:1.5px dashed var(--gray-mid)!important;border-radius:0!important;padding:2px 4px!important;font-family:'Cormorant Garamond',serif;font-size:17px;font-weight:500;color:var(--brown-dark);min-width:120px;cursor:text;}
+.amb-nome-input:hover{border-bottom-color:var(--salmon-light)!important;}
+.amb-nome-input:focus{border-bottom:1.5px solid var(--salmon)!important;}
 .pct-row{display:flex;align-items:center;gap:12px;}
 .pct-row input{width:65px;margin-bottom:0;}
 .progress-bar{flex:1;height:5px;background:var(--gray-mid);border-radius:3px;overflow:hidden;}
@@ -717,6 +720,7 @@ async function abrirObra(key) {
 
   // inicializa etapas e fotos
   etapas = obra.etapasBase.map(e => ({...e, status:'', obs:'', proximo:'', pct:0}));
+  ordenarPorData(); // garante que já nasce em ordem cronológica, mesmo que o molde salvo esteja por categoria
   ambFotos = [];
   _realizacoes = [];
   _previstos = [];
@@ -1116,26 +1120,37 @@ function aplicarRevisarJSON() {
   saveDraft();
 }
 
-function aplicarNovaSemanaJSON(s) {
+async function aplicarNovaSemanaJSON(s) {
+  // Exclui do Storage as fotos que estavam ABERTAS NESTA SESSÃO (não as do arquivo importado —
+  // aquele é um relatório antigo já aprovado/arquivado, e suas fotos não devem ser tocadas).
+  const fotosDaSessaoAtual = ambFotos;
   if(s.cliente) document.getElementById('cliente').value = s.cliente;
   if(s.cidade) document.getElementById('cidade').value = s.cidade;
   if(s.etapas && s.etapas.length) {
     etapas = s.etapas.map(e => ({tipo:e.tipo,item:e.item,inicio:e.inicio||'',fim:e.fim||'',pct:e.pct||0,status:(e.status==='na'?'na':''),obs:'',proximo:'',manual:e.manual||false,oculta:e.oculta||false}));
+    ordenarPorData();
     renderEtapas();
   }
   _realizacoes = []; _previstos = []; _imprevistos = []; _observacoes = [];
   // Pendências não resolvidas seguem para a semana nova
   _pendencias = (s.pendencias||[]).filter(x => x);
   renderListas();
+  // Recomeça a seção de fotos em branco, com os mesmos nomes de ambiente do arquivo importado
+  ambFotos = [];
+  const listaFotos = document.getElementById('ambFotosList');
+  if(listaFotos) listaFotos.innerHTML = '';
+  const nomesAmb = (s.ambFotos||[]).filter(Boolean).map(a => a.nome).filter(n => n);
+  (nomesAmb.length ? nomesAmb : (OBRAS_CATALOG[obraAtual]?.ambientesBase || [])).forEach(n => addAmbFoto(n));
   alert('✓ Nova semana iniciada a partir de "'+(s.semana||'—')+'".\nAtualize a semana de referência.'+(_pendencias.length?'\nPendências anteriores foram importadas — remova as resolvidas.':''));
   saveDraft();
+  excluirFotosStorage(fotosDaSessaoAtual); // em segundo plano, não bloqueia a tela
 }
 
-function aplicarNovaSemanaJSONModal() {
+async function aplicarNovaSemanaJSONModal() {
   const s = _jsonImportadoPendente;
   fecharModalImportJSON();
   if(!s) return;
-  aplicarNovaSemanaJSON(s);
+  await aplicarNovaSemanaJSON(s);
 }
 
 function fecharModalImportJSON() {
@@ -1306,6 +1321,16 @@ function ordenarPorData() {
     return cmp !== 0 ? cmp : a.ordemOriginal - b.ordemOriginal;
   });
   posicoes.forEach((i,k) => { etapas[i] = itens[k].item; });
+}
+
+/* Versão que NÃO mexe no array de edição — devolve uma cópia ordenada por data.
+   Usada no relatório e na revisão, para garantir que o cronograma do cliente sempre
+   saia em ordem cronológica, mesmo que a tela de edição ainda não tenha sido reordenada. */
+function copiaOrdenadaPorData(lista) {
+  return lista
+    .map((item, ordemOriginal) => ({ item, ordemOriginal }))
+    .sort((a,b) => { const cmp = compararEtapasPorData(a.item, b.item); return cmp !== 0 ? cmp : a.ordemOriginal - b.ordemOriginal; })
+    .map(x => x.item);
 }
 
 /* Disparado ao editar Início ou Fim de uma etapa: reordena a lista toda e reabre o mesmo painel */
@@ -1583,10 +1608,12 @@ function addAmbFoto(nome) {
   ambFotos.push({nome, fotos:[]});
   const list = document.getElementById('ambFotosList');
   const div = document.createElement('div'); div.className='card'; div.id='af-'+idx;
+  const nomeEsc = (nome||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
   div.innerHTML =
-    '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">' +
-      '<input type="text" value="'+nome+'" placeholder="Ambiente" style="margin-bottom:0;font-family:\'Cormorant Garamond\',serif;font-size:17px;font-weight:500;background:transparent;border:none;border-bottom:1px solid var(--salmon-light);border-radius:0;padding:2px 0;width:220px;" oninput="ambFotos['+idx+'].nome=this.value">' +
-      '<button class="btn-remove" onclick="removeAmbFoto('+idx+')">× Remover</button>' +
+    '<div style="display:flex;align-items:center;gap:6px;margin-bottom:12px;">' +
+      '<input type="text" value="'+nomeEsc+'" placeholder="Nome do ambiente" class="amb-nome-input" title="Clique para editar o nome do ambiente" oninput="ambFotos['+idx+'].nome=this.value">' +
+      '<span style="font-size:12px;color:var(--brown-light);" title="Editável">✏️</span>' +
+      '<button class="btn-remove" style="margin-left:auto;" onclick="removeAmbFoto('+idx+')">× Remover</button>' +
     '</div>' +
     '<div class="foto-area" id="fa-'+idx+'" onclick="document.getElementById(\'fi-'+idx+'\').click()">' +
       '<input type="file" id="fi-'+idx+'" accept="image/*,.heic,.heif" multiple onchange="handleFotos('+idx+',this)">' +
@@ -1695,9 +1722,25 @@ async function delFoto(a, f) {
   }
 }
 
+/* Apaga do Storage todas as fotos de uma lista de ambientes (usado ao começar semana nova).
+   Best-effort: se falhar, não trava o fluxo — só deixa de liberar espaço agora. */
+async function excluirFotosStorage(listaAmbFotos) {
+  if(!sb) return;
+  const caminhos = [];
+  (listaAmbFotos||[]).filter(Boolean).forEach(a => {
+    (a.fotos||[]).filter(Boolean).forEach(url => {
+      if(url && url.includes('/object/public/fotos/')) {
+        try { caminhos.push(decodeURIComponent(url.split('/object/public/fotos/')[1])); } catch(e) {}
+      }
+    });
+  });
+  if(!caminhos.length) return;
+  try { await sb.storage.from('fotos').remove(caminhos); } catch(e) {}
+}
+
 /* ── REVIEW ───────────────────────────────────────────────────────── */
 function buildReview() {
-  const et = etapas.filter(Boolean);
+  const et = copiaOrdenadaPorData(etapas.filter(Boolean));
   const af = ambFotos.filter(Boolean);
   const totalF = af.reduce((s,a) => s+(a.fotos.filter(Boolean).length), 0);
   const sIcon = {ok:'🟢',pendente:'🟡',alerta:'🔴',semAlteracao:'⚪',na:'∅',''  :'⚫'};
@@ -1743,7 +1786,7 @@ function buildExport() {
   const obra = OBRAS_CATALOG[obraAtual];
   document.getElementById('expCliente').textContent = cliente;
   document.getElementById('expSemana').textContent = (obra?.label||'')+' · Semana '+semana+(cidade?' · '+cidade:'');
-  const et = etapas.filter(Boolean);
+  const et = copiaOrdenadaPorData(etapas.filter(Boolean));
   const af = ambFotos.filter(Boolean);
   const sc = {ok:'var(--green-ok)',pendente:'var(--amber)',alerta:'var(--red-alert)',semAlteracao:'var(--brown-light)',na:'var(--gray-mid)',''  :'var(--brown-light)'};
   const sl = {ok:'Avançou',pendente:'Pendências',alerta:'Problema / Ajuste',semAlteracao:'Sem alterações',na:'Não se aplica',''  :'—'};
