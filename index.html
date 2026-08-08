@@ -1068,7 +1068,6 @@ function loadJSON(input) {
 function renderEtapas() {
   const list = document.getElementById('etapasList');
   list.innerHTML = '';
-  const grupos = {};
   const totalEtapas = etapas.filter(Boolean).length;
   const temAtividade = etapas.some(e => e && (e.status || e.obs || e.pct > 0));
   const ocultarFuturas = temAtividade && totalEtapas > 12;
@@ -1081,15 +1080,7 @@ function renderEtapas() {
       upcomingCount++;
       if(upcomingCount > 3) { ocultadas++; return; }
     }
-    if(!grupos[e.tipo]) grupos[e.tipo] = [];
-    grupos[e.tipo].push(i);
-  });
-  Object.keys(grupos).forEach(tipo => {
-    const gh = document.createElement('div');
-    gh.className = 'grupo-header';
-    gh.textContent = tipo;
-    list.appendChild(gh);
-    grupos[tipo].forEach(idx => appendEtapaBlock(idx, list));
+    appendEtapaBlock(i, list);
   });
   if(ocultadas > 0) {
     const btn = document.createElement('button');
@@ -1120,7 +1111,7 @@ function appendEtapaBlock(idx, list) {
   const isOpen = !!(e.status || e.obs);
   const statusBadge = e.status ? '<span style="font-size:10px;font-weight:600;padding:2px 7px;border-radius:2px;background:'+sColor[e.status]+'20;color:'+sColor[e.status]+';">'+sLabel[e.status]+'</span>' : '';
   const pctBadge = (e.pct > 0 && e.status !== 'na') ? '<span style="font-size:11px;font-weight:700;color:'+(sColor[e.status]||'var(--brown-light)')+';">'+e.pct+'%</span>' : '';
-  const ocultaBadge = e.oculta ? '<span class="badge-oculta" title="Não aparece no relatório do cliente">🚫 Oculta</span>' : '';
+  const ocultaBadge = e.oculta ? '<span class="badge-oculta" title="O texto/observações não aparecem no relatório — mas data e % continuam no cronograma">🚫 Texto oculto</span>' : '';
   const nomeEsc = (e.item||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
   const TIPOS = ['Civil','Marcenaria','Marmoraria','Vidraçaria','Churrasqueira','Decor','Extra'];
   if(e.tipo && !TIPOS.includes(e.tipo)) TIPOS.push(e.tipo);
@@ -1134,9 +1125,9 @@ function appendEtapaBlock(idx, list) {
     '</div>' +
     '<div class="etapa-body'+(isOpen?' open':'')+'" id="body-'+idx+'">' +
       '<div class="date-row">' +
-        '<div><label>Início</label><input type="text" value="'+(e.inicio||'')+'" placeholder="DD/MM" oninput="etapas['+idx+'].inicio=this.value" onchange="ordenarGrupoPorDataEAtualizar('+idx+')"></div>' +
-        '<div><label>Fim</label><input type="text" value="'+(e.fim||'')+'" placeholder="DD/MM" oninput="etapas['+idx+'].fim=this.value"></div>' +
-        '<div><label>Grupo</label><select style="margin-bottom:0;font-size:12px;padding:6px 10px;" onchange="mudarTipoEtapa('+idx+',this.value)">'+tipoOpts+'</select></div>' +
+        '<div><label>Início</label><input type="text" value="'+(e.inicio||'')+'" placeholder="DD/MM" oninput="etapas['+idx+'].inicio=this.value" onchange="ordenarPorDataEAtualizar('+idx+')"></div>' +
+        '<div><label>Fim</label><input type="text" value="'+(e.fim||'')+'" placeholder="DD/MM" oninput="etapas['+idx+'].fim=this.value" onchange="ordenarPorDataEAtualizar('+idx+')"></div>' +
+        '<div><label>Categoria</label><select style="margin-bottom:0;font-size:12px;padding:6px 10px;" onchange="mudarTipoEtapa('+idx+',this.value)">'+tipoOpts+'</select></div>' +
       '</div>' +
       '<div class="status-row">' +
         '<span class="tag tag-ok '+sc('ok')+'" onclick="setStatus('+idx+',\'ok\',this)">✓ Avançou</span>' +
@@ -1155,13 +1146,13 @@ function appendEtapaBlock(idx, list) {
         '<div class="progress-bar"><div class="progress-fill" id="pb-'+idx+'" style="width:'+(e.pct||0)+'%"></div></div>' +
       '</div>' +
       '<div class="mover-row">' +
-        '<button class="btn-mover" onclick="moverParaExtremoGrupo('+idx+',\'topo\')" title="Ir para o topo do grupo">⇈ Topo do grupo</button>' +
+        '<button class="btn-mover" onclick="moverParaExtremo('+idx+',\'topo\')" title="Ir para o início da lista">⇈ Topo</button>' +
         '<button class="btn-mover" onclick="moverEtapa('+idx+',-1)" title="Mover para cima">▲ Subir</button>' +
         '<button class="btn-mover" onclick="moverEtapa('+idx+',1)" title="Mover para baixo">▼ Descer</button>' +
-        '<button class="btn-mover" onclick="moverParaExtremoGrupo('+idx+',\'fim\')" title="Ir para o fim do grupo">⇊ Fim do grupo</button>' +
+        '<button class="btn-mover" onclick="moverParaExtremo('+idx+',\'fim\')" title="Ir para o fim da lista">⇊ Fim</button>' +
       '</div>' +
       '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">' +
-        '<button class="btn-ocultar'+(e.oculta?' ativa':'')+'" onclick="toggleOcultarEtapa('+idx+')" title="Etapas ocultas não aparecem em lugar nenhum do relatório do cliente">'+(e.oculta ? '👁 Mostrar no relatório' : '🚫 Ocultar do relatório')+'</button>' +
+        '<button class="btn-ocultar'+(e.oculta?' ativa':'')+'" onclick="toggleOcultarEtapa('+idx+')" title="A etapa continua aparecendo no cronograma com data e %; só o texto/observações somem do relatório">'+(e.oculta ? '👁 Mostrar texto no relatório' : '🚫 Ocultar texto do relatório')+'</button>' +
         '<button class="btn-remove" onclick="removeEtapa('+idx+')">× Remover</button>' +
       '</div>' +
     '</div>';
@@ -1178,7 +1169,7 @@ function toggleOcultarEtapa(idx) {
 
 function mudarTipoEtapa(idx, tipo) {
   if(!etapas[idx]) return;
-  etapas[idx].tipo = tipo;
+  etapas[idx].tipo = tipo; // agora é só um rótulo informativo — não afeta a posição na lista
   etapas[idx].manual = true; // continua sempre visível na lista
   const aberta = document.getElementById('body-'+idx)?.classList.contains('open');
   renderEtapas();
@@ -1192,9 +1183,7 @@ function moverEtapa(idx, dir) {
   let alvo = idx + dir;
   while(alvo >= 0 && alvo < etapas.length && !etapas[alvo]) alvo += dir;
   if(alvo < 0 || alvo >= etapas.length) return;
-  // assume o grupo da vizinha para a mudança fazer sentido visual
-  etapas[idx].tipo = etapas[alvo].tipo || etapas[idx].tipo;
-  etapas[idx].manual = true;
+  etapas[idx].manual = true; // ordem ajustada à mão — não reatribui categoria
   const tmp = etapas[alvo];
   etapas[alvo] = etapas[idx];
   etapas[idx] = tmp;
@@ -1212,56 +1201,59 @@ function parseDataBR(s) {
   return mes*100 + dia;
 }
 
-/* Reordena só as etapas de UM grupo (tipo) pela data de Início, sem tocar nos outros grupos.
-   Etapas sem data preenchida vão para o fim do grupo. Empates mantêm a ordem atual (estável). */
-function ordenarGrupoPorData(tipo) {
+/* Compara duas etapas: primeiro por data de Início, depois por data de Fim (desempate).
+   Sem data preenchida vai para o fim. Empate total é resolvido fora, pela ordem atual. */
+function compararEtapasPorData(a, b) {
+  const ia = parseDataBR(a.inicio), ib = parseDataBR(b.inicio);
+  if(ia !== null && ib !== null && ia !== ib) return ia - ib;
+  if(ia === null && ib !== null) return 1;
+  if(ia !== null && ib === null) return -1;
+  const fa = parseDataBR(a.fim), fb = parseDataBR(b.fim);
+  if(fa !== null && fb !== null && fa !== fb) return fa - fb;
+  if(fa === null && fb !== null) return 1;
+  if(fa !== null && fb === null) return -1;
+  return 0;
+}
+
+/* Reordena a lista INTEIRA (sem separar por categoria) por Início e depois Fim.
+   Empates totais mantêm a ordem atual (ordenação estável). */
+function ordenarPorData() {
   const posicoes = [];
-  etapas.forEach((e,i) => { if(e && e.tipo === tipo) posicoes.push(i); });
+  etapas.forEach((e,i) => { if(e) posicoes.push(i); });
   if(posicoes.length < 2) return;
   const itens = posicoes.map((i, ordemOriginal) => ({ item: etapas[i], ordemOriginal }));
   itens.sort((a,b) => {
-    const da = parseDataBR(a.item.inicio), db = parseDataBR(b.item.inicio);
-    if(da === null && db === null) return a.ordemOriginal - b.ordemOriginal;
-    if(da === null) return 1;
-    if(db === null) return -1;
-    if(da !== db) return da - db;
-    return a.ordemOriginal - b.ordemOriginal;
+    const cmp = compararEtapasPorData(a.item, b.item);
+    return cmp !== 0 ? cmp : a.ordemOriginal - b.ordemOriginal;
   });
-  posicoes.forEach((i, k) => { etapas[i] = itens[k].item; });
+  posicoes.forEach((i,k) => { etapas[i] = itens[k].item; });
 }
 
-/* Disparado ao editar o campo Início de uma etapa: reordena só o grupo dela e reabre o mesmo painel */
-function ordenarGrupoPorDataEAtualizar(idx) {
+/* Disparado ao editar Início ou Fim de uma etapa: reordena a lista toda e reabre o mesmo painel */
+function ordenarPorDataEAtualizar(idx) {
   const alvo = etapas[idx];
   if(!alvo) return;
-  ordenarGrupoPorData(alvo.tipo);
+  ordenarPorData();
   renderEtapas();
   const novoIdx = etapas.indexOf(alvo);
   if(novoIdx >= 0 && document.getElementById('body-'+novoIdx) && !document.getElementById('body-'+novoIdx).classList.contains('open')) toggleEtapa(novoIdx);
   saveDraft();
 }
 
-/* Botão manual: reordena TODOS os grupos pela data de Início de uma vez (útil ao importar obra antiga) */
+/* Botão manual: reordena tudo de uma vez (útil ao importar obra antiga com etapas fora de ordem) */
 function ordenarTodosPorData() {
-  const tipos = [...new Set(etapas.filter(Boolean).map(e => e.tipo))];
-  tipos.forEach(t => ordenarGrupoPorData(t));
+  ordenarPorData();
   renderEtapas();
   saveDraft();
 }
 
-/* Pula direto para o topo/fim do próprio grupo — sem precisar clicar Subir/Descer várias vezes */
-function moverParaExtremoGrupo(idx, posicao) {
+/* Pula direto para o topo/fim da lista inteira — sem precisar clicar Subir/Descer várias vezes */
+function moverParaExtremo(idx, posicao) {
   if(!etapas[idx]) return;
-  const tipo = etapas[idx].tipo;
   const item = etapas[idx];
   item.manual = true;
   etapas.splice(idx, 1);
-  const mesmoTipo = [];
-  etapas.forEach((e,i) => { if(e && e.tipo === tipo) mesmoTipo.push(i); });
-  let alvoIdx;
-  if(!mesmoTipo.length) alvoIdx = posicao === 'topo' ? 0 : etapas.length;
-  else if(posicao === 'topo') alvoIdx = mesmoTipo[0];
-  else alvoIdx = mesmoTipo[mesmoTipo.length - 1] + 1;
+  const alvoIdx = posicao === 'topo' ? 0 : etapas.length;
   etapas.splice(alvoIdx, 0, item);
   renderEtapas();
   if(document.getElementById('body-'+alvoIdx) && !document.getElementById('body-'+alvoIdx).classList.contains('open')) toggleEtapa(alvoIdx);
@@ -1294,8 +1286,6 @@ function addEtapaManual() {
   const idx = etapas.length;
   etapas.push({tipo:'Extra',item:'',inicio:'',fim:'',status:'',obs:'',proximo:'',pct:0,manual:true});
   const list = document.getElementById('etapasList');
-  const gh = document.createElement('div'); gh.className='grupo-header'; gh.textContent='Extra';
-  list.appendChild(gh);
   appendEtapaBlock(idx, list);
   toggleEtapa(idx);
   const inp = document.querySelector('#etapa-'+idx+' .etapa-nome-input');
@@ -1593,12 +1583,12 @@ function buildReview() {
     '<div class="review-item"><span class="review-icon">🏗️</span><div class="review-text"><strong>'+(obra?.label||'—')+'</strong><span>'+
     (document.getElementById('cliente').value||'—')+' · Semana '+(document.getElementById('semana').value||'—')+' · '+(document.getElementById('responsavel').value||'—')+'</span></div></div></div>' +
     '<div class="review-section"><div class="review-label">Etapas com status ('+et.filter(e=>e.status).length+')</div>';
-  et.filter(e=>e.status).forEach(e => { const tagOculta = e.oculta ? ' <span class="badge-oculta" style="margin-left:6px;">🚫 Oculta do relatório</span>' : ''; html += '<div class="review-item"><span class="review-icon">'+(sIcon[e.status]||'⚫')+'</span><div class="review-text"><strong>'+e.item+tagOculta+'</strong><span>'+(e.obs||'Sem observações')+'</span></div></div>'; });
+  et.filter(e=>e.status).forEach(e => { const tagOculta = e.oculta ? ' <span class="badge-oculta" style="margin-left:6px;">🚫 Texto oculto no relatório</span>' : ''; html += '<div class="review-item"><span class="review-icon">'+(sIcon[e.status]||'⚫')+'</span><div class="review-text"><strong>'+e.item+tagOculta+'</strong><span>'+(e.obs||'Sem observações')+'</span></div></div>'; });
   if(!et.filter(e=>e.status).length) html += '<div class="alert-box">⚠️ Nenhuma etapa com status definido.</div>';
   html += '</div>';
 
   const ocultas = et.filter(e => e.oculta);
-  if(ocultas.length) html += '<div class="alert-box">🚫 '+ocultas.length+' etapa(s) marcada(s) para NÃO aparecer no relatório do cliente: '+ocultas.map(e=>e.item).join(', ')+'.</div>';
+  if(ocultas.length) html += '<div class="alert-box">🚫 '+ocultas.length+' etapa(s) sem o texto/observações no relatório (mas o % e as datas continuam aparecendo no cronograma): '+ocultas.map(e=>e.item).join(', ')+'.</div>';
 
   const real = _realizacoes.filter(x => x!==null && x!=='');
   const prev = _previstos.filter(x => x!==null && x!=='');
@@ -1653,22 +1643,18 @@ function buildExport() {
   const etAtivas = et.filter(e => (e.status||e.obs) && e.status!=='na' && !e.oculta);
   if(etAtivas.length) {
     body += h2exp('Acompanhamento de Etapas');
-    const grupos = {};
-    etAtivas.forEach(e => { if(!grupos[e.tipo]) grupos[e.tipo]=[]; grupos[e.tipo].push(e); });
-    Object.keys(grupos).forEach(tipo => {
-      body += '<p style="font-size:10px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--salmon);margin:16px 0 8px;">'+tipo+'</p>';
-      grupos[tipo].forEach(e => {
-        const c = sc[e.status]||'var(--brown-light)';
-        body += '<div style="margin-bottom:12px;padding:12px;background:var(--off-white);border-radius:3px;border-left:3px solid '+c+';print-color-adjust:exact;-webkit-print-color-adjust:exact;">' +
-          '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">' +
-          '<strong style="font-size:13px;">'+e.item+'</strong>' +
-          (e.status?'<span style="font-size:10px;font-weight:600;padding:2px 7px;border-radius:2px;background:'+c+'20;color:'+c+';">'+sl[e.status]+'</span>':'') +
-          (e.pct>0?'<span style="font-size:11px;font-weight:700;color:'+c+';margin-left:auto;">'+e.pct+'%</span>':'') +
-          '</div>' +
-          (e.obs?'<div style="font-size:12px;color:var(--brown-mid);margin-bottom:4px;">'+e.obs+'</div>':'') +
-          (e.proximo?'<div style="font-size:11px;color:var(--brown-light);"><strong>Próxima semana:</strong> '+e.proximo+'</div>':'') +
-          '</div>';
-      });
+    etAtivas.forEach(e => {
+      const c = sc[e.status]||'var(--brown-light)';
+      body += '<div style="margin-bottom:12px;padding:12px;background:var(--off-white);border-radius:3px;border-left:3px solid '+c+';print-color-adjust:exact;-webkit-print-color-adjust:exact;">' +
+        '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">' +
+        '<strong style="font-size:13px;">'+e.item+'</strong>' +
+        '<span style="font-size:9px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--brown-light);">'+e.tipo+'</span>' +
+        (e.status?'<span style="font-size:10px;font-weight:600;padding:2px 7px;border-radius:2px;background:'+c+'20;color:'+c+';">'+sl[e.status]+'</span>':'') +
+        (e.pct>0?'<span style="font-size:11px;font-weight:700;color:'+c+';margin-left:auto;">'+e.pct+'%</span>':'') +
+        '</div>' +
+        (e.obs?'<div style="font-size:12px;color:var(--brown-mid);margin-bottom:4px;">'+e.obs+'</div>':'') +
+        (e.proximo?'<div style="font-size:11px;color:var(--brown-light);"><strong>Próxima semana:</strong> '+e.proximo+'</div>':'') +
+        '</div>';
     });
   }
 
@@ -1685,7 +1671,7 @@ function buildExport() {
 
   if(obsvExp.length) { body += h2exp('Observações'); body += listaExp(obsvExp, 'var(--brown-light)'); }
 
-  const validas = et.filter(e => e.status !== 'na' && !e.oculta);
+  const validas = et.filter(e => e.status !== 'na');
   const total = validas.length;
   const conc = validas.filter(e=>e.pct===100).length;
   const and = validas.filter(e=>e.pct>0&&e.pct<100).length;
@@ -1708,7 +1694,6 @@ function buildExport() {
     '<th style="padding:7px 10px;text-align:left;font-weight:600;letter-spacing:.06em;text-transform:uppercase;font-size:10px;color:var(--brown-mid);">%</th>' +
     '</tr></thead><tbody>';
   et.forEach(e => {
-    if(e.oculta) return; // oculta = some de vez do relatório do cliente, nem como linha
     const ehNA = e.status === 'na';
     const c = ehNA ? 'var(--brown-light)' : e.pct===100?'var(--green-ok)':e.pct>0?'var(--amber)':'var(--brown-mid)';
     const estiloNA = ehNA ? 'opacity:.55;' : '';
