@@ -326,6 +326,8 @@ textarea{resize:vertical;min-height:72px;}
     <div style="text-align:center;font-size:11px;color:var(--brown-light);letter-spacing:.08em;text-transform:uppercase;margin:12px 0;">— ou colar texto —</div>
     <label>Transcrição / anotações</label>
     <textarea id="transcricao" placeholder="Cole aqui o texto do Google Docs ou a transcrição..." style="min-height:90px;"></textarea>
+    <button class="btn-secondary" onclick="corrigirTranscricao()" style="width:100%;margin-bottom:10px;">🪄 Corrigir ditado (ortografia e pontuação)</button>
+    <div id="corrigirStatus"></div>
     <button class="btn-primary" onclick="processarIA()" style="width:100%;">✨ Processar com IA → preencher etapas</button>
     <div id="iaStatus"></div>
   </div>
@@ -1368,15 +1370,55 @@ function uploadAudio(input) {
   transcribeBlob(file);
 }
 
+/* Vocabulário real desta obra: nomes de etapas, ambientes e cliente — ajuda a IA a reconhecer
+   palavras técnicas e nomes próprios que o ditado costuma errar (ex: "impermeabilização", "Suíte Master"). */
+function montarVocabularioObra() {
+  const termos = new Set();
+  etapas.filter(Boolean).forEach(e => termos.add(e.item));
+  ambFotos.filter(Boolean).forEach(a => { if(a.nome) termos.add(a.nome); });
+  const cliente = document.getElementById('cliente')?.value;
+  if(cliente) termos.add(cliente);
+  return Array.from(termos);
+}
+
+async function corrigirTranscricao() {
+  const texto = document.getElementById('transcricao').value.trim();
+  if(!texto) { alert('Cole o texto do ditado primeiro.'); return; }
+  const st = document.getElementById('corrigirStatus');
+  st.innerHTML = '<div class="loading"><div class="spinner"></div> Corrigindo ditado...</div>';
+  const vocab = montarVocabularioObra();
+  const prompt = 'Você é revisor de texto para Suzana Bonolo Interiores. O texto abaixo veio de ditado por voz (Google Docs), gravado no carro ou no canteiro de obra, e costuma ter erros de reconhecimento de fala, frases coladas sem pontuação, e palavras técnicas trocadas por outras parecidas foneticamente.' +
+    (vocab.length ? '\n\nVocabulário real desta obra (etapas, ambientes, cliente) — use como referência para corrigir palavras prováveis quando fizer sentido pelo contexto:\n- '+vocab.join('\n- ') : '') +
+    '\n\nTexto original (ditado):\n"""'+texto+'"""\n\nCorrija: (1) erros óbvios de reconhecimento de voz, preferindo o termo do vocabulário acima quando for claramente o que a pessoa quis dizer; (2) pontuação e separação de frases corridas em frases distintas; (3) erros de concordância evidentes.\nNÃO adicione informação nova, NÃO resuma, NÃO interprete além do que já está escrito — apenas corrija a forma do texto. Se um trecho não tiver erro óbvio, mantenha exatamente como está.\nDevolva APENAS o texto corrigido, em português, sem comentários, sem aspas, sem markdown.';
+  try {
+    const resp = await fetch('/api/chat', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({model:'claude-sonnet-4-6',max_tokens:2000,messages:[{role:'user',content:prompt}]})
+    });
+    const data = await resp.json();
+    const corrigido = (data.content?.[0]?.text||'').trim();
+    if(!corrigido) throw new Error('vazio');
+    document.getElementById('transcricao').value = corrigido;
+    st.innerHTML = '<div class="info-box" style="margin-top:10px;">✓ Texto corrigido — dê uma olhada antes de processar. Se algo ficou errado, ajuste direto na caixa.</div>';
+    saveDraft();
+  } catch(e) {
+    st.innerHTML = '<div class="alert-box" style="margin-top:10px;">⚠️ Não consegui corrigir agora (sem conexão?). O texto original continua na caixa, sem alterações.</div>';
+  }
+}
+
 async function transcribeBlob(blob) {
   try {
     const b64 = await new Promise((res,rej) => { const r=new FileReader(); r.onload=()=>res(r.result); r.onerror=rej; r.readAsDataURL(blob); });
     let mt = blob.type||'audio/ogg';
     if(!mt||mt==='application/octet-stream') mt='audio/ogg';
+    const vocab = obraAtual ? montarVocabularioObra() : [];
+    const instrucao = 'Transcreva este áudio em português, com pontuação e separação de frases adequada.' +
+      (vocab.length ? ' Vocabulário desta obra, para ajudar a reconhecer palavras técnicas e nomes próprios: '+vocab.join(', ')+'.' : '') +
+      ' Retorne apenas a transcrição, sem comentários.';
     const resp = await fetch('/api/chat', {
       method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({model:'claude-sonnet-4-6',max_tokens:1000,messages:[{role:'user',content:[
-        {type:'text',text:'Transcreva exatamente este áudio em português. Retorne apenas a transcrição.'},
+        {type:'text',text:instrucao},
         {type:'document',source:{type:'base64',media_type:mt,data:b64.split(',')[1]}}
       ]}]})
     });
@@ -1396,7 +1438,9 @@ async function processarIA() {
   const st = document.getElementById('iaStatus');
   st.innerHTML = '<div class="loading"><div class="spinner"></div> Processando com IA...</div>';
   const nomesEtapas = etapas.filter(Boolean).map(e => e.item);
-  const prompt = 'Você é assistente de Suzana Bonolo Interiores. Analise esta transcrição de visita de obra e classifique TODAS as informações mencionadas.\n\nETAPAS DO CRONOGRAMA DESTA OBRA (a única lista válida):\n- ' + nomesEtapas.join('\n- ') + '\n\nTranscrição:\n"""'+texto+'"""\n\nRetorne APENAS JSON válido sem texto extra:\n{"etapas":[{"nome":"nome EXATO copiado da lista acima","status":"ok|pendente|alerta|semAlteracao","obs":"observação curta","proximo":"próxima semana"}],"realizacoes":["item curto"],"previstos":["item curto"],"pendencias":["item curto"],"imprevistos":["item curto"],"observacoes":["item curto"]}\n\nRegras:\n- REGRA MAIS IMPORTANTE: é PROIBIDO descartar informações. Toda informação da transcrição deve aparecer em pelo menos um campo do JSON. Se não souber onde classificar, coloque em observacoes — nunca omita.\n- 2ª REGRA MAIS IMPORTANTE: em "etapas", use SOMENTE nomes copiados exatamente da lista do cronograma acima. É PROIBIDO inventar etapa que não está na lista. Se a transcrição menciona um serviço que NÃO corresponde a nenhuma etapa da lista (mesmo parecido), NÃO o coloque em "etapas" — coloque a informação em realizacoes, previstos, pendencias, imprevistos ou observacoes, citando o nome do serviço no texto do item (ex: "Impermeabilização em andamento").\n- 3ª REGRA MAIS IMPORTANTE: NUNCA repita a mesma informação em mais de um lugar (a única exceção é realizacoes, que resume o que foi concluído). Se a informação pertence a uma etapa da lista, preencha a etapa (obs/proximo) e NÃO a repita em previstos, pendencias ou observacoes. previstos é APENAS para o que não pertence a nenhuma etapa da lista. Um mesmo assunto JAMAIS aparece em pendencias E previstos ao mesmo tempo — escolha o campo mais adequado (se falta fazer, é pendência; se está agendado, é previsto).\n- Alvenaria, paredes novas e reforços de drywall pertencem à etapa "Construção" quando ela estiver na lista e não houver etapa mais específica. Impermeabilização pertence à etapa de impermeabilização se existir na lista; se não existir, pertence à "Construção".\n- etapas: status ok=avançou normalmente, pendente=tem pendências, alerta=problema ou retrabalho, semAlteracao=sem movimento\n- pendencias: o que falta fazer ou ficou incompleto (ex: "falta abrir os nichos da parede do banheiro")\n- imprevistos: descobertas ou serviços novos que não estavam planejados (ex: "parede extra da cozinha precisou ser demolida")\n- observacoes: fatos do canteiro que não são tarefa nem problema (ex: "bancada da churrasqueira servindo de apoio para a obra")\n- realizacoes: o que foi concluído na semana (máximo 5)\n- previstos: o que vem nas próximas semanas, com datas quando citadas (máximo 5)\n- Itens curtos e específicos, máximo 15 palavras cada\n- Obs e proximo das etapas: máximo 12 palavras cada\n- Tudo em português';
+  const vocabExtra = montarVocabularioObra();
+  const avisoDitado = vocabExtra.length ? '\n\n- Este texto pode vir de ditado por voz e ainda conter pequenos erros de reconhecimento residuais (mesmo após correção). Se um trecho parecer estranho mas se parecer foneticamente com um termo do vocabulário desta obra ('+vocabExtra.join(', ')+'), interprete como esse termo. Nunca invente informação que não tenha correspondência razoável no texto.' : '';
+  const prompt = 'Você é assistente de Suzana Bonolo Interiores. Analise esta transcrição de visita de obra e classifique TODAS as informações mencionadas.\n\nETAPAS DO CRONOGRAMA DESTA OBRA (a única lista válida):\n- ' + nomesEtapas.join('\n- ') + '\n\nTranscrição:\n"""'+texto+'"""\n\nRetorne APENAS JSON válido sem texto extra:\n{"etapas":[{"nome":"nome EXATO copiado da lista acima","status":"ok|pendente|alerta|semAlteracao","obs":"observação curta","proximo":"próxima semana"}],"realizacoes":["item curto"],"previstos":["item curto"],"pendencias":["item curto"],"imprevistos":["item curto"],"observacoes":["item curto"]}\n\nRegras:\n- REGRA MAIS IMPORTANTE: é PROIBIDO descartar informações. Toda informação da transcrição deve aparecer em pelo menos um campo do JSON. Se não souber onde classificar, coloque em observacoes — nunca omita.\n- 2ª REGRA MAIS IMPORTANTE: em "etapas", use SOMENTE nomes copiados exatamente da lista do cronograma acima. É PROIBIDO inventar etapa que não está na lista. Se a transcrição menciona um serviço que NÃO corresponde a nenhuma etapa da lista (mesmo parecido), NÃO o coloque em "etapas" — coloque a informação em realizacoes, previstos, pendencias, imprevistos ou observacoes, citando o nome do serviço no texto do item (ex: "Impermeabilização em andamento").\n- 3ª REGRA MAIS IMPORTANTE: NUNCA repita a mesma informação em mais de um lugar (a única exceção é realizacoes, que resume o que foi concluído). Se a informação pertence a uma etapa da lista, preencha a etapa (obs/proximo) e NÃO a repita em previstos, pendencias ou observacoes. previstos é APENAS para o que não pertence a nenhuma etapa da lista. Um mesmo assunto JAMAIS aparece em pendencias E previstos ao mesmo tempo — escolha o campo mais adequado (se falta fazer, é pendência; se está agendado, é previsto).\n- Alvenaria, paredes novas e reforços de drywall pertencem à etapa "Construção" quando ela estiver na lista e não houver etapa mais específica. Impermeabilização pertence à etapa de impermeabilização se existir na lista; se não existir, pertence à "Construção".\n- etapas: status ok=avançou normalmente, pendente=tem pendências, alerta=problema ou retrabalho, semAlteracao=sem movimento\n- pendencias: o que falta fazer ou ficou incompleto (ex: "falta abrir os nichos da parede do banheiro")\n- imprevistos: descobertas ou serviços novos que não estavam planejados (ex: "parede extra da cozinha precisou ser demolida")\n- observacoes: fatos do canteiro que não são tarefa nem problema (ex: "bancada da churrasqueira servindo de apoio para a obra")\n- realizacoes: o que foi concluído na semana (máximo 5)\n- previstos: o que vem nas próximas semanas, com datas quando citadas (máximo 5)\n- Itens curtos e específicos, máximo 15 palavras cada\n- Obs e proximo das etapas: máximo 12 palavras cada\n- Tudo em português' + avisoDitado;
   try {
     const resp = await fetch('/api/chat', {
       method:'POST', headers:{'Content-Type':'application/json'},
