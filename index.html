@@ -140,6 +140,7 @@ textarea{resize:vertical;min-height:72px;}
 .btn-remove{background:none;border:none;color:var(--brown-light);cursor:pointer;font-size:15px;padding:0 4px;}
 .btn-remove:hover{color:var(--red-alert);}
 .btn-row{display:flex;gap:12px;justify-content:flex-end;margin-top:24px;}
+.btn-row-top{display:flex;gap:12px;justify-content:flex-end;margin-bottom:18px;}
 
 /* ── REVIEW ── */
 .review-item{display:flex;gap:12px;padding:10px 0;border-bottom:1px solid var(--gray-light);font-size:13px;}
@@ -189,7 +190,7 @@ textarea{resize:vertical;min-height:72px;}
   .sel-grid{grid-template-columns:1fr;}
 }
 @media print{
-  .header,.steps,.btn-row,.print-hint,.save-bar{display:none!important;}
+  .header,.steps,.btn-row,.btn-row-top,.print-hint,.save-bar{display:none!important;}
   .page{display:block!important;}
   .page:not(#page4){display:none!important;}
   body{background:white;}
@@ -297,8 +298,7 @@ textarea{resize:vertical;min-height:72px;}
   <div class="step active" onclick="goTo(0)">1. Obra</div>
   <div class="step" onclick="goTo(1)">2. Áudio + Etapas</div>
   <div class="step" onclick="goTo(2)">3. Fotos</div>
-  <div class="step" onclick="goTo(3)">4. Revisão</div>
-  <div class="step" onclick="goTo(4)">5. Exportar</div>
+  <div class="step" onclick="goTo(3)">4. Exportar</div>
   <div id="saveStatus" style="margin-left:auto;padding:15px 4px;font-size:10px;color:var(--brown-light);white-space:nowrap;"></div>
 </nav>
 
@@ -309,6 +309,7 @@ textarea{resize:vertical;min-height:72px;}
 <div class="container">
   <div class="sec-title">Identificação da Obra</div>
   <div class="sec-sub">Importe o .json da semana anterior ou preencha os dados.</div>
+  <div class="btn-row-top"><button class="btn-primary" onclick="goTo(1)">Próximo →</button></div>
   <div class="save-bar">
     <span>💾 Carregar dados da semana anterior</span>
     <input type="file" id="jsonInput" accept=".json" style="display:none" onchange="loadJSON(this)">
@@ -348,6 +349,10 @@ textarea{resize:vertical;min-height:72px;}
 <div class="container">
   <div class="sec-title">Áudio e Etapas</div>
   <div class="sec-sub">Cole a transcrição do Google Docs ou grave. A IA preenche as etapas.</div>
+  <div class="btn-row-top">
+    <button class="btn-secondary" onclick="goTo(0)">← Voltar</button>
+    <button class="btn-primary" onclick="goTo(2)">Próximo →</button>
+  </div>
   <div class="card">
     <div class="card-label">Padrão de áudio</div>
     <div class="info-box">💬 <span><strong>Fale assim:</strong> "Demolição — avançou normalmente — concluíram a parede, falta banheiro social — próxima semana: regularização"</span></div>
@@ -424,37 +429,31 @@ textarea{resize:vertical;min-height:72px;}
 <div class="page" id="page2">
 <div class="container">
   <div class="sec-title">Fotos da Semana</div>
-  <div class="sec-sub">Por ambiente. No relatório aparecem todas agrupadas no final.</div>
+  <div class="sec-sub">Por ambiente. Use ▲▼ para reordenar. No relatório aparecem agrupadas, cada título junto com suas fotos.</div>
+  <div class="btn-row-top">
+    <button class="btn-secondary" onclick="goTo(1)">← Voltar</button>
+    <button class="btn-primary" onclick="gerarRelatorio()">Gerar Relatório →</button>
+  </div>
   <div id="ambFotosList"></div>
   <button class="btn-add" onclick="addAmbFoto('')">+ Adicionar ambiente</button>
   <div class="btn-row">
     <button class="btn-secondary" onclick="goTo(1)">← Voltar</button>
-    <button class="btn-primary" onclick="buildReview();goTo(3)">Revisar →</button>
+    <button class="btn-primary" onclick="gerarRelatorio()">Gerar Relatório →</button>
   </div>
 </div>
 </div>
 
 <!-- ═══════════════════════════════════════════
-     PAGE 3 · REVISÃO
-═══════════════════════════════════════════ -->
-<div class="page" id="page3">
-<div class="container">
-  <div class="sec-title">Revisão</div>
-  <div class="sec-sub">Etapa da Suzana. Confira antes de gerar.</div>
-  <div id="reviewContent"></div>
-  <div class="btn-row">
-    <button class="btn-secondary" onclick="goTo(2)">← Corrigir</button>
-    <button class="btn-primary" onclick="aprovarEGerar()">Aprovar e Gerar →</button>
-  </div>
-</div>
-</div>
-
-<!-- ═══════════════════════════════════════════
-     PAGE 4 · EXPORTAR
+     PAGE 4 · EXPORTAR (também serve de revisão final)
 ═══════════════════════════════════════════ -->
 <div class="page" id="page4">
 <div class="container">
   <div class="print-hint">🖨️ PDF: <strong>Ctrl+P</strong> → Salvar como PDF</div>
+  <div class="btn-row-top">
+    <button class="btn-secondary" onclick="goTo(2)">← Corrigir</button>
+    <button class="btn-primary" onclick="aprovarSemana(this)" id="btnAprovarTop">✓ Aprovar Semana</button>
+    <button class="btn-primary" onclick="imprimirRelatorio()">🖨️ Salvar PDF</button>
+  </div>
   <div class="save-bar">
     <span>💾 Salve o .json no OneDrive para semana que vem</span>
     <button class="btn-primary" style="padding:8px 16px;" onclick="exportJSON()">Baixar .json</button>
@@ -468,7 +467,8 @@ textarea{resize:vertical;min-height:72px;}
     <div style="background:var(--brown-dark);padding:18px 40px;font-family:'Cormorant Garamond',serif;font-size:15px;color:var(--salmon-light);text-align:center;letter-spacing:.06em;print-color-adjust:exact;-webkit-print-color-adjust:exact;">Suzana Bonolo · Interiores</div>
   </div>
   <div class="btn-row" style="margin-top:18px;">
-    <button class="btn-secondary" onclick="goTo(3)">← Voltar</button>
+    <button class="btn-secondary" onclick="goTo(2)">← Voltar</button>
+    <button class="btn-primary" onclick="aprovarSemana(this)">✓ Aprovar Semana</button>
     <button class="btn-primary" onclick="imprimirRelatorio()">🖨️ Salvar PDF</button>
   </div>
 </div>
@@ -812,15 +812,12 @@ function mesclarFotosLocais(key) {
       const jaTem = new Set(ambFotos[idx].fotos.filter(Boolean));
       fotos.forEach(src => {
         if(jaTem.has(src)) return; // já veio do banco, não duplica
-        const fi = ambFotos[idx].fotos.length;
         ambFotos[idx].fotos.push(src);
         jaTem.add(src);
         mescladas++;
-        const w = document.createElement('div'); w.className = 'foto-wrap'; w.id = 'fw-'+idx+'-'+fi;
-        w.innerHTML = '<img class="foto-thumb" src="'+src+'"><button class="foto-del" onclick="delFoto('+idx+','+fi+')">×</button>';
-        document.getElementById('fg-'+idx).appendChild(w);
       });
     });
+    renderAmbFotos();
   } catch(e) {}
   return mescladas;
 }
@@ -952,11 +949,18 @@ async function salvarAprovado() {
   } catch(e) {}
 }
 
-function aprovarEGerar() {
-  buildExport();
-  goTo(4);
-  salvarAprovado();      // grava a versão aprovada no banco, em segundo plano (histórico permanente)
-  iniciarProximaSemana(); // limpa o rascunho compartilhado para a próxima semana, mantendo cronograma/%/pendências
+/* Botão explícito na tela de Exportar. Ação irreversível (mexe no rascunho compartilhado
+   com o resto da equipe), por isso pede confirmação e não roda sozinha ao entrar na página. */
+async function aprovarSemana(btn) {
+  if(!obraAtual) return;
+  if(!confirm('Isso vai arquivar esta semana como aprovada e preparar o rascunho para a próxima semana (mantém cronograma, % e pendências em aberto; limpa status, observações, listas e fotos).\n\nToda a equipe passa a ver o rascunho já resetado para a próxima semana.\n\nConfirma?')) return;
+  const textoOriginal = btn ? btn.textContent : '';
+  if(btn) { btn.disabled = true; btn.textContent = 'Aprovando...'; }
+  await salvarAprovado();      // grava a versão aprovada no banco (histórico permanente)
+  await iniciarProximaSemana(); // limpa o rascunho compartilhado para a próxima semana
+  document.querySelectorAll('#btnAprovarTop, .btn-row button').forEach(b => {
+    if(b.textContent.includes('Aprovar') || b === btn) { b.disabled = true; b.textContent = '✓ Semana aprovada'; }
+  });
 }
 
 /* Chamado ao aprovar: prepara o rascunho compartilhado para a semana seguinte.
@@ -1044,29 +1048,21 @@ function restaurarRascunho(d) {
   renderEtapas();
   renderListas();
   // reconstrói ambientes e fotos
-  document.getElementById('ambFotosList').innerHTML = '';
   ambFotos = [];
   const salvos = (d.ambFotos || []).filter(Boolean);
   salvos.forEach(a => {
-    const idx = ambFotos.length;
-    addAmbFoto(a.nome || '');
-    (a.fotos || []).filter(Boolean).forEach(src => {
-      const fi = ambFotos[idx].fotos.length;
-      ambFotos[idx].fotos.push(src);
-      const w = document.createElement('div'); w.className = 'foto-wrap'; w.id = 'fw-'+idx+'-'+fi;
-      w.innerHTML = '<img class="foto-thumb" src="'+src+'"><button class="foto-del" onclick="delFoto('+idx+','+fi+')">×</button>';
-      document.getElementById('fg-'+idx).appendChild(w);
-    });
+    ambFotos.push({ nome: a.nome || '', fotos: (a.fotos || []).filter(Boolean) });
   });
   if(!salvos.length) {
-    (OBRAS_CATALOG[d.obraKey]?.ambientesBase || []).forEach(n => addAmbFoto(n));
+    (OBRAS_CATALOG[d.obraKey]?.ambientesBase || []).forEach(n => ambFotos.push({ nome: n, fotos: [] }));
   }
+  renderAmbFotos();
   if(d.semFotos) alert('Rascunho restaurado. Atenção: as fotos não couberam no rascunho e precisam ser adicionadas de novo.');
 }
 
 /* ── NAVEGAÇÃO DE STEPS ───────────────────────────────────────────── */
 function goTo(n) {
-  const pages = ['page0','page1','page2','page3','page4'];
+  const pages = ['page0','page1','page2','page4'];
   pages.forEach((id, i) => {
     document.getElementById(id).classList.toggle('active', i===n);
   });
@@ -1304,7 +1300,7 @@ function aplicarRevisarJSON() {
   fecharModalImportJSON();
   if(!s) return;
   restaurarRascunho(s);
-  alert('✓ Semana carregada para revisão. Vá até o passo 4 (Revisão) para aprovar.');
+  alert('✓ Semana carregada para revisão. Vá até o passo 4 (Exportar) para conferir e aprovar.');
   saveDraft();
 }
 
@@ -1325,10 +1321,9 @@ async function aplicarNovaSemanaJSON(s) {
   renderListas();
   // Recomeça a seção de fotos em branco, com os mesmos nomes de ambiente do arquivo importado
   ambFotos = [];
-  const listaFotos = document.getElementById('ambFotosList');
-  if(listaFotos) listaFotos.innerHTML = '';
   const nomesAmb = (s.ambFotos||[]).filter(Boolean).map(a => a.nome).filter(n => n);
-  (nomesAmb.length ? nomesAmb : (OBRAS_CATALOG[obraAtual]?.ambientesBase || [])).forEach(n => addAmbFoto(n));
+  (nomesAmb.length ? nomesAmb : (OBRAS_CATALOG[obraAtual]?.ambientesBase || [])).forEach(n => ambFotos.push({ nome: n, fotos: [] }));
+  renderAmbFotos();
   alert('✓ Nova semana iniciada a partir de "'+(s.semana||'—')+'".\nAtualize a semana de referência.'+(_pendencias.length?'\nPendências anteriores foram importadas — remova as resolvidas.':''));
   saveDraft();
   excluirFotosStorage(fotosDaSessaoAtual); // em segundo plano, não bloqueia a tela
@@ -1512,7 +1507,7 @@ function ordenarPorData() {
 }
 
 /* Versão que NÃO mexe no array de edição — devolve uma cópia ordenada por data.
-   Usada no relatório e na revisão, para garantir que o cronograma do cliente sempre
+   Usada no relatório, para garantir que o cronograma do cliente sempre
    saia em ordem cronológica, mesmo que a tela de edição ainda não tenha sido reordenada. */
 function copiaOrdenadaPorData(lista) {
   return lista
@@ -1791,16 +1786,18 @@ async function processarIA() {
 }
 
 /* ── FOTOS ────────────────────────────────────────────────────────── */
-function addAmbFoto(nome) {
-  const idx = ambFotos.length;
-  ambFotos.push({nome, fotos:[]});
-  const list = document.getElementById('ambFotosList');
+function appendAmbFotoBlock(idx, list) {
+  const a = ambFotos[idx];
+  if(!a) return;
   const div = document.createElement('div'); div.className='card'; div.id='af-'+idx;
-  const nomeEsc = (nome||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+  const nomeEsc = (a.nome||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+  const fotosHtml = (a.fotos||[]).map((src,fi)=> src ? ('<div class="foto-wrap" id="fw-'+idx+'-'+fi+'"><img class="foto-thumb" src="'+src+'"><button class="foto-del" onclick="delFoto('+idx+','+fi+')">×</button></div>') : '').join('');
   div.innerHTML =
-    '<div style="display:flex;align-items:center;gap:6px;margin-bottom:12px;">' +
+    '<div style="display:flex;align-items:center;gap:6px;margin-bottom:12px;flex-wrap:wrap;">' +
       '<input type="text" value="'+nomeEsc+'" placeholder="Nome do ambiente" class="amb-nome-input" title="Clique para editar o nome do ambiente" oninput="ambFotos['+idx+'].nome=this.value">' +
       '<span style="font-size:12px;color:var(--brown-light);" title="Editável">✏️</span>' +
+      '<button class="btn-mover" onclick="moverAmb('+idx+',-1)" title="Mover ambiente para cima">▲</button>' +
+      '<button class="btn-mover" onclick="moverAmb('+idx+',1)" title="Mover ambiente para baixo">▼</button>' +
       '<button class="btn-remove" style="margin-left:auto;" onclick="removeAmbFoto('+idx+')">× Remover</button>' +
     '</div>' +
     '<div class="foto-area" id="fa-'+idx+'" onclick="document.getElementById(\'fi-'+idx+'\').click()">' +
@@ -1808,8 +1805,32 @@ function addAmbFoto(nome) {
       '<div style="font-size:20px;margin-bottom:4px;">📸</div>' +
       '<div style="font-size:12px;color:var(--brown-light);" id="fa-label-'+idx+'"><strong style="color:var(--salmon);">Adicionar fotos</strong> · JPG, PNG, HEIC</div>' +
     '</div>' +
-    '<div class="fotos-grid" id="fg-'+idx+'"></div>';
+    '<div class="fotos-grid" id="fg-'+idx+'">'+fotosHtml+'</div>';
   list.appendChild(div);
+}
+
+function renderAmbFotos() {
+  const list = document.getElementById('ambFotosList');
+  if(!list) return;
+  list.innerHTML = '';
+  ambFotos.forEach((a, idx) => appendAmbFotoBlock(idx, list));
+}
+
+function addAmbFoto(nome) {
+  ambFotos.push({nome, fotos:[]});
+  renderAmbFotos();
+}
+
+/* Reordena os cartões de ambiente (troca de posição com o vizinho) */
+function moverAmb(idx, dir) {
+  let alvo = idx + dir;
+  while(alvo >= 0 && alvo < ambFotos.length && !ambFotos[alvo]) alvo += dir;
+  if(alvo < 0 || alvo >= ambFotos.length) return;
+  const tmp = ambFotos[alvo];
+  ambFotos[alvo] = ambFotos[idx];
+  ambFotos[idx] = tmp;
+  renderAmbFotos();
+  saveDraft();
 }
 
 function removeAmbFoto(idx) { document.getElementById('af-'+idx)?.remove(); ambFotos[idx]=null; }
@@ -1926,47 +1947,12 @@ async function excluirFotosStorage(listaAmbFotos) {
   try { await sb.storage.from('fotos').remove(caminhos); } catch(e) {}
 }
 
-/* ── REVIEW ───────────────────────────────────────────────────────── */
-function buildReview() {
-  const et = copiaOrdenadaPorData(etapas.filter(Boolean));
-  const af = ambFotos.filter(Boolean);
-  const totalF = af.reduce((s,a) => s+(a.fotos.filter(Boolean).length), 0);
-  const sIcon = {ok:'🟢',pendente:'🟡',alerta:'🔴',semAlteracao:'⚪',na:'∅',''  :'⚫'};
-  const obra = OBRAS_CATALOG[obraAtual];
-  let html = '<div class="review-section"><div class="review-label">Identificação</div>' +
-    '<div class="review-item"><span class="review-icon">🏗️</span><div class="review-text"><strong>'+(obra?.label||'—')+'</strong><span>'+
-    (document.getElementById('cliente').value||'—')+' · Semana '+(document.getElementById('semana').value||'—')+' · '+(document.getElementById('responsavel').value||'—')+'</span></div></div></div>' +
-    '<div class="review-section"><div class="review-label">Etapas com status ('+et.filter(e=>e.status).length+')</div>';
-  et.filter(e=>e.status).forEach(e => { const tagOculta = e.oculta ? ' <span class="badge-oculta" style="margin-left:6px;">🚫 Texto oculto no relatório</span>' : ''; html += '<div class="review-item"><span class="review-icon">'+(sIcon[e.status]||'⚫')+'</span><div class="review-text"><strong>'+e.item+tagOculta+'</strong><span>'+(e.obs||'Sem observações')+'</span></div></div>'; });
-  if(!et.filter(e=>e.status).length) html += '<div class="alert-box">⚠️ Nenhuma etapa com status definido.</div>';
-  html += '</div>';
-
-  const ocultas = et.filter(e => e.oculta);
-  if(ocultas.length) html += '<div class="alert-box">🚫 '+ocultas.length+' etapa(s) sem o texto/observações no relatório (mas o % e as datas continuam aparecendo no cronograma): '+ocultas.map(e=>e.item).join(', ')+'.</div>';
-
-  const real = _realizacoes.filter(x => x!==null && x!=='');
-  const prev = _previstos.filter(x => x!==null && x!=='');
-  const pend = _pendencias.filter(x => x!==null && x!=='');
-  const impr = _imprevistos.filter(x => x!==null && x!=='');
-  const obsv = _observacoes.filter(x => x!==null && x!=='');
-  const secLista = (label, icon, arr) => {
-    if(!arr.length) return '';
-    let h = '<div class="review-section"><div class="review-label">'+label+' ('+arr.length+')</div>';
-    arr.forEach(x => { h += '<div class="review-item"><span class="review-icon">'+icon+'</span><div class="review-text"><strong>'+x+'</strong></div></div>'; });
-    return h + '</div>';
-  };
-  html += secLista('Realizações da semana','🟢',real);
-  html += secLista('Pendências','🟡',pend);
-  html += secLista('Imprevistos','🔴',impr);
-  html += secLista('Previsto próximas semanas','➡️',prev);
-  html += secLista('Observações','📝',obsv);
-
-  if(totalF===0) html += '<div class="alert-box">⚠️ Nenhuma foto adicionada.</div>';
-  html += '<div class="review-section"><div class="review-label">Fotos</div><div class="review-item"><span class="review-icon">📸</span><div class="review-text"><strong>'+totalF+' foto(s)</strong><span>em '+af.length+' ambiente(s)</span></div></div></div>';
-  document.getElementById('reviewContent').innerHTML = html;
+/* ── EXPORT ───────────────────────────────────────────────────────── */
+function gerarRelatorio() {
+  buildExport();
+  goTo(3); // index 3 = page4 (tela de exportar, que também serve de revisão final)
 }
 
-/* ── EXPORT ───────────────────────────────────────────────────────── */
 function buildExport() {
   const cliente = document.getElementById('cliente').value||'—';
   const semana = document.getElementById('semana').value||'—';
@@ -2059,9 +2045,13 @@ function buildExport() {
   if(ambComFotos.length) {
     body += h2exp('Fotos da Semana');
     ambComFotos.forEach(a => {
+      // Título + grade de fotos ficam num único bloco com "não quebrar" no PDF/impressão,
+      // assim o nome do ambiente nunca fica separado das fotos em páginas diferentes.
+      body += '<div style="break-inside:avoid;page-break-inside:avoid;-webkit-column-break-inside:avoid;">';
       body += '<p style="font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--salmon);margin:16px 0 8px;">'+(a.nome||'Ambiente')+'</p>';
       body += '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px;align-items:start;">';
-      a.fotos.filter(Boolean).forEach(src => body += '<img src="'+src+'" style="width:100%;height:auto;border-radius:3px;display:block;">');
+      a.fotos.filter(Boolean).forEach(src => body += '<img src="'+src+'" style="width:100%;height:auto;border-radius:3px;display:block;break-inside:avoid;page-break-inside:avoid;">');
+      body += '</div>';
       body += '</div>';
     });
   }
