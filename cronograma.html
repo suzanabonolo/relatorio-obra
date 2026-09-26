@@ -123,6 +123,11 @@ table.tbl{width:100%;border-collapse:collapse;font-size:12px;min-width:880px;}
 .g-bar{position:absolute;top:8px;height:13px;border-radius:2px;background:var(--salmon);print-color-adjust:exact;-webkit-print-color-adjust:exact;}
 .g-bar.crit{background:var(--red-alert);}
 .g-bar.done{background:var(--green-ok);}
+.g-bar.estimado{background-image:repeating-linear-gradient(45deg,rgba(255,255,255,.55) 0 3px,transparent 3px 7px);}
+.forn{display:inline-block;margin-top:4px;font-size:10px;font-weight:600;padding:2px 7px;border-radius:2px;}
+.forn-pend{background:#FDF4E7;color:var(--amber);}
+.forn-crit{background:#FAEAEA;color:var(--red-alert);}
+.forn-ok{background:#EAF3EE;color:var(--green-ok);}
 .g-bar .pct{position:absolute;left:0;top:0;bottom:0;background:rgba(61,43,43,.28);border-radius:2px;}
 .g-base{position:absolute;top:24px;height:4px;border-radius:2px;background:var(--brown-light);opacity:.55;print-color-adjust:exact;-webkit-print-color-adjust:exact;}
 .g-marco{position:absolute;top:8px;width:13px;height:13px;transform:rotate(45deg);background:var(--brown-dark);print-color-adjust:exact;-webkit-print-color-adjust:exact;}
@@ -229,6 +234,15 @@ table.tbl{width:100%;border-collapse:collapse;font-size:12px;min-width:880px;}
   <div class="hint" style="margin:0 0 8px;">"Após o término": só começa depois que a outra terminar. "Junto com o início": começa quando a outra começar. Folga = dias úteis a mais de espera (ex.: tempo de produção da marcenaria). Pode ser negativa.</div>
   <div id="edDeps"></div>
   <button class="btn-add" onclick="addDepEditor()">+ Adicionar dependência</button>
+  <div class="card-label" style="margin-top:18px;">Prazo de fornecedor</div>
+  <label class="check"><input type="checkbox" id="edFornDep" onchange="atualizarFornUI()"> Esta etapa depende do prazo de um fornecedor (produção, entrega)</label>
+  <div id="edFornBox">
+    <div class="row-2">
+      <div><label>Fornecedor escolhido</label><input type="text" id="edFornNome" placeholder="Ex: Marcenaria Silva"></div>
+      <div><label>&nbsp;</label><label class="check"><input type="checkbox" id="edFornOk"> Prazo confirmado com o fornecedor</label></div>
+    </div>
+    <div class="hint" id="edFornInfo"></div>
+  </div>
   <div id="edCalc" style="margin-top:14px;"></div>
   <div class="btn-row">
     <button class="btn-danger-txt" id="edExcluir" onclick="excluirTarefa()">Excluir etapa</button>
@@ -289,29 +303,31 @@ const USUARIOS = {
 const TIPOS = ['Civil','Marcenaria','Marmoraria','Vidraçaria','Churrasqueira','Decor','Extra'];
 const MOTIVOS = ['Pedido do cliente','Fornecedor / entrega','Mão de obra','Imprevisto na obra','Replanejamento interno','Outro'];
 
-/* Modelo sugerido. Durações e folgas são ESTIMATIVAS iniciais — ajuste à realidade de cada obra.
-   deps: [índice da etapa anterior, 'TI' (após o término) | 'II' (junto com o início), folga em dias úteis] */
+/* Modelo sugerido. Sequência do escritório: mede e instala marmoraria, depois mede e instala marcenaria.
+   Durações e folgas são ESTIMATIVAS iniciais — ajuste à realidade de cada obra.
+   deps: [índice da etapa anterior, 'TI' (após o término) | 'II' (junto com o início), folga em dias úteis]
+   forn: etapa depende de prazo de fornecedor (a folga da dependência é o tempo de produção) */
 const MODELO = [
   {tipo:'Civil',      item:'Demolição', dur:5, deps:[]},
   {tipo:'Civil',      item:'Construção', dur:10, deps:[[0,'TI',0]]},
   {tipo:'Civil',      item:'Hidráulica', dur:8, deps:[[1,'II',3]]},
   {tipo:'Civil',      item:'Elétrica', dur:10, deps:[[1,'II',3]]},
   {tipo:'Civil',      item:'Infra e condensadora ar condicionado', dur:5, deps:[[1,'II',3]]},
-  {tipo:'Civil',      item:'Impermeabilização de piso e paredes', dur:5, deps:[[2,'TI',0]]},
+  {tipo:'Civil',      item:'Impermeabilização de piso e paredes', dur:5, deps:[[2,'TI',0],[1,'TI',0]]},
   {tipo:'Civil',      item:'Revestimentos de piso', dur:10, deps:[[5,'TI',3],[3,'TI',0]]},
   {tipo:'Civil',      item:'Revestimentos de parede', dur:10, deps:[[6,'II',2]]},
   {tipo:'Civil',      item:'Forros', dur:8, deps:[[3,'TI',0],[4,'TI',0]]},
-  {tipo:'Marcenaria', item:'Medição marcenaria', dur:1, deps:[[7,'TI',0],[8,'TI',0]]},
-  {tipo:'Civil',      item:'Pintura', dur:10, deps:[[7,'TI',0],[8,'TI',0]]},
-  {tipo:'Marcenaria', item:'Instalação de marcenaria', dur:10, deps:[[9,'TI',25]]},
-  {tipo:'Marmoraria', item:'Medição marmoraria', dur:1, deps:[[11,'II',3]]},
-  {tipo:'Marmoraria', item:'Instalação de marmoraria', dur:5, deps:[[12,'TI',15]]},
+  {tipo:'Marmoraria', item:'Medição marmoraria', dur:1, deps:[[6,'TI',0],[7,'TI',0]]},
+  {tipo:'Civil',      item:'Pintura', dur:10, deps:[[6,'TI',0],[7,'TI',0],[8,'TI',0]]},
+  {tipo:'Marmoraria', item:'Instalação de marmoraria', dur:5, deps:[[9,'TI',15]], forn:true},
+  {tipo:'Marcenaria', item:'Medição marcenaria', dur:1, deps:[[11,'TI',0]]},
+  {tipo:'Marcenaria', item:'Instalação de marcenaria', dur:10, deps:[[12,'TI',25]], forn:true},
   {tipo:'Civil',      item:'Instalação de luminárias técnicas', dur:3, deps:[[10,'TI',0]]},
-  {tipo:'Civil',      item:'Instalação de louças e metais', dur:3, deps:[[13,'TI',0]]},
-  {tipo:'Vidraçaria', item:'Instalação de box', dur:2, deps:[[13,'TI',10]]},
+  {tipo:'Civil',      item:'Instalação de louças e metais', dur:3, deps:[[11,'TI',0]]},
+  {tipo:'Vidraçaria', item:'Instalação de box', dur:2, deps:[[11,'TI',10]], forn:true},
   {tipo:'Decor',      item:'Medição de persianas e cortinas', dur:1, deps:[[10,'II',0]]},
-  {tipo:'Decor',      item:'Instalação de persianas e cortinas', dur:2, deps:[[17,'TI',15],[10,'TI',0]]},
-  {tipo:'Decor',      item:'Limpeza pós obra', dur:3, deps:[[11,'TI',0],[14,'TI',0],[15,'TI',0],[16,'TI',0],[18,'TI',0]]}
+  {tipo:'Decor',      item:'Instalação de persianas e cortinas', dur:2, deps:[[17,'TI',15],[10,'TI',0]], forn:true},
+  {tipo:'Decor',      item:'Limpeza pós obra', dur:3, deps:[[13,'TI',0],[14,'TI',0],[15,'TI',0],[16,'TI',0],[18,'TI',0]]}
 ];
 
 let sb = null;
@@ -336,23 +352,52 @@ function pascoa(y){
         mes=Math.floor((h+l-7*m+114)/31), dia=((h+l-7*m+114)%31)+1;
   return new Date(y, mes-1, dia, 12);
 }
-function feriadosNacionais(y){
-  const p = pascoa(y);
-  return [
-    [new Date(y,0,1,12),'Confraternização Universal'],
-    [addDias(p,-48),'Carnaval (segunda)'],
-    [addDias(p,-47),'Carnaval (terça)'],
-    [addDias(p,-2),'Sexta-feira Santa'],
-    [new Date(y,3,21,12),'Tiradentes'],
-    [new Date(y,4,1,12),'Dia do Trabalho'],
-    [addDias(p,60),'Corpus Christi'],
-    [new Date(y,8,7,12),'Independência'],
-    [new Date(y,9,12,12),'N. Sra. Aparecida'],
-    [new Date(y,10,2,12),'Finados'],
-    [new Date(y,10,15,12),'Proclamação da República'],
-    [new Date(y,10,20,12),'Consciência Negra'],
-    [new Date(y,11,25,12),'Natal']
-  ].map(([d,n]) => ({ data: iso(d), nome: n }));
+/* Feriados que param a obra: nacionais + estadual de SP + municipais.
+   Fontes: Decreto 10.264/2025 (Barueri), calendário 2026 da Prefeitura de SP; Santana de Parnaíba conferido em calendário não oficial.
+   Carnaval e Corpus Christi (onde não é feriado municipal) entram como ponto facultativo — remova se a obra trabalhar. */
+const CIDADES = { sp:'São Paulo (capital)', barueri:'Barueri', santana:'Santana de Parnaíba', outra:'Outra cidade de SP (só nacionais e estadual)' };
+function feriadosDoAno(y, cidade){
+  const p = pascoa(y), L = [];
+  const add = (d,n) => L.push({ data: iso(d), nome: n, auto: true });
+  add(new Date(y,0,1,12),'Confraternização Universal');
+  add(addDias(p,-48),'Carnaval (ponto facultativo)');
+  add(addDias(p,-47),'Carnaval (ponto facultativo)');
+  add(addDias(p,-2),'Sexta-feira Santa');
+  add(new Date(y,3,21,12),'Tiradentes');
+  add(new Date(y,4,1,12),'Dia do Trabalho');
+  add(addDias(p,60), (cidade === 'sp' || cidade === 'barueri') ? 'Corpus Christi' : 'Corpus Christi (ponto facultativo)');
+  add(new Date(y,6,9,12),'Revolução Constitucionalista (SP)');
+  add(new Date(y,8,7,12),'Independência');
+  add(new Date(y,9,12,12),'N. Sra. Aparecida');
+  add(new Date(y,10,2,12),'Finados');
+  add(new Date(y,10,15,12),'Proclamação da República');
+  add(new Date(y,10,20,12),'Consciência Negra');
+  add(new Date(y,11,25,12),'Natal');
+  if(cidade === 'sp') add(new Date(y,0,25,12),'Aniversário de São Paulo');
+  if(cidade === 'barueri') add(new Date(y,5,24,12),'São João Batista (padroeiro de Barueri)');
+  if(cidade === 'santana'){ add(new Date(y,6,26,12),"Sant'Ana (padroeira)"); add(new Date(y,10,14,12),'Aniversário de Santana de Parnaíba'); }
+  return L.sort((a,b) => a.data.localeCompare(b.data));
+}
+function feriadosNacionais(y){ return feriadosDoAno(y, 'outra'); }
+function adivinharCidade(txt){
+  const k = chaveNome(txt);
+  if(/barueri/.test(k)) return 'barueri';
+  if(/santana|parnaiba/.test(k)) return 'santana';
+  if(/sao paulo|\bsp\b/.test(k) && !/alphaville|tambore/.test(k)) return 'sp';
+  return '';
+}
+/* Junta feriados automáticos dos anos pedidos com os que já existem (manuais sempre ficam). */
+function montarFeriados(listaAtual, cidade, anos, regerar){
+  const manuais = (listaAtual || []).filter(f => !f.auto);
+  const autos = regerar ? [] : (listaAtual || []).filter(f => f.auto);
+  const anosSet = new Set(anos);
+  const mantidos = regerar ? [] : autos.filter(f => !anosSet.has(+f.data.slice(0,4)));
+  const novos = [];
+  anos.forEach(y => feriadosDoAno(y, cidade).forEach(f => novos.push(f)));
+  const porData = {};
+  mantidos.concat(novos).forEach(f => porData[f.data] = f);
+  manuais.forEach(f => porData[f.data] = f); // o que foi digitado à mão sempre prevalece
+  return Object.values(porData).sort((a,b) => a.data.localeCompare(b.data));
 }
 
 /* Calendário de dias úteis da obra: índice 0 = 1º dia útil a partir da data de início */
@@ -432,26 +477,34 @@ function calcularCronograma(lista){
   R.fimIdx = lista.length ? Math.max.apply(null, lista.map(t => R.t[t.id].ef)) : 0;
   const suc = {};
   lista.forEach(t => (t.deps || []).forEach(d => { if(byId[d.id] && d.id !== t.id) (suc[d.id] = suc[d.id] || []).push({ q:t, d:d }); }));
-  const ls = {}, vis = {};
+  /* Separa as duas folgas: a do INÍCIO (vem de quem começa "junto com" ela) e a do TÉRMINO
+     (vem de quem espera ela terminar). Uma etapa pode ter início crítico e término com folga:
+     atrasar o começo atrasa a obra, mas durar mais alguns dias não. */
+  const ls = {}, vis = {}, info = {};
   function volta(t){
     if(ls[t.id] !== undefined) return ls[t.id];
     const c = R.t[t.id];
     if(vis[t.id]) return R.fimIdx - c.dur;
     vis[t.id] = true;
-    let v = R.fimIdx - c.dur;
+    let lf = R.fimIdx, lsIni = Infinity;
     (suc[t.id] || []).forEach(({q,d}) => {
       const f = parseInt(d.folga,10) || 0;
       const lq = volta(q);
-      v = Math.min(v, d.tipo === 'II' ? lq - f : lq - f - c.dur);
+      if(d.tipo === 'II') lsIni = Math.min(lsIni, lq - f);
+      else lf = Math.min(lf, lq - f);
     });
-    ls[t.id] = v;
-    return v;
+    info[t.id] = { lf, lsIni };
+    ls[t.id] = Math.min(lsIni, lf - c.dur);
+    return ls[t.id];
   }
   let fim = null;
   lista.forEach(t => {
     const c = R.t[t.id];
     c.folgaTotal = volta(t) - c.es;
+    const inf = info[t.id] || { lf: R.fimIdx, lsIni: Infinity };
+    c.folgaTermino = inf.lf - c.ef;
     c.critica = c.folgaTotal <= 0;
+    c.inicioCritico = c.critica && c.folgaTermino > 0;
     c.ciclo = R.ciclos.has(t.id);
     c.inicio = diaDoIdx(c.es);
     c.fim = c.dur > 0 ? diaDoIdx(c.ef - 1) : c.inicio;
@@ -634,6 +687,40 @@ async function carregarDados(){
 }
 
 function recalcular(){ montarCalendario(config); calc = calcularCronograma(tarefas); }
+let semColunaCidade = false;
+let semColunaFornecedor = false;
+/* ── PRAZOS DE FORNECEDOR ───────────────────────────────────────────
+   Boa prática: todo prazo que depende de terceiro nasce "estimado" e só vira
+   "confirmado" quando o fornecedor escolhido informa o prazo dele. */
+function dependeFornecedor(t){
+  if(t.fornecedor && typeof t.fornecedor.depende === 'boolean') return t.fornecedor.depende;
+  return /^instala/i.test(chaveNome(t.item)) && ['Marcenaria','Marmoraria','Vidraçaria','Decor'].includes(t.tipo);
+}
+function prazoConfirmado(t){ return !!(t.fornecedor && t.fornecedor.confirmado); }
+function pendenteFornecedor(t){ return dependeFornecedor(t) && !prazoConfirmado(t); }
+/* Até quando confirmar: antes de começar a etapa anterior (ex.: a medição), senão a data vira chute */
+function limiteConfirmacao(t){
+  const byId = {}; tarefas.forEach(x => byId[x.id] = x);
+  let lim = calc.t[t.id] ? calc.t[t.id].inicio : null;
+  (t.deps || []).forEach(d => { const c = calc.t[d.id]; if(byId[d.id] && c && (!lim || c.inicio < lim)) lim = c.inicio; });
+  return lim;
+}
+function urgenciaFornecedor(t){ const l = limiteConfirmacao(t); return l ? diasCorridos(hoje(), l) : null; }
+function semFornecedor(o){ if(Array.isArray(o)) return o.map(semFornecedor); const x = Object.assign({}, o); delete x.fornecedor; return x; }
+async function gravarComFallback(montar){ // tenta com a coluna fornecedor; se o banco ainda não tiver, grava sem
+  let r = await montar(true);
+  if(r.error && /fornecedor/i.test(r.error.message)){ semColunaFornecedor = true; r = await montar(false); }
+  return r;
+}
+function cidadeObra(){ return config.cidade || adivinharCidade(obra.cidade) || ''; }
+function anosCobertos(){ return new Set((config.feriados || []).filter(f => f.auto && /Natal/.test(f.nome)).map(f => +f.data.slice(0,4))); }
+function anosNecessarios(){
+  const ini = deISO(config.data_inicio); if(!ini) return [];
+  const fim = calc.fim && calc.fim > ini ? calc.fim : ini;
+  const a = []; for(let y = ini.getFullYear(); y <= fim.getFullYear(); y++) a.push(y);
+  return a;
+}
+function anosFaltando(){ const c = anosCobertos(); return anosNecessarios().filter(y => !c.has(y)); }
 
 function mapaPct(){
   const m = {};
@@ -650,6 +737,9 @@ function renderObra(){
   h += '<div class="sec-title">'+esc(obra.label)+'</div>';
   h += '<div class="sec-sub">'+esc(obra.cliente || '')+(obra.cidade ? ' · '+esc(obra.cidade) : '')+'</div>';
   h += '<div class="print-only" style="font-size:12px;color:var(--brown-mid);margin-bottom:10px;">Cronograma gerado em '+br(hoje())+'</div>';
+  const urgentes = tarefas.filter(t => pendenteFornecedor(t) && urgenciaFornecedor(t) !== null && urgenciaFornecedor(t) <= 10);
+  if(urgentes.length) h += '<div class="erro-box no-print">⏰ <strong>Confirmar prazo com o fornecedor:</strong> ' + urgentes.map(t => esc(t.item)+(urgenciaFornecedor(t) < 0 ? ' (atrasado: era até ' : ' (até ')+br(limiteConfirmacao(t))+')').join('; ') + '. Sem isso, as datas daqui para frente são estimativa.</div>';
+  if(relatorioDesatualizado()) h += '<div class="alert-box no-print">📤 O relatório está com datas ou prazo diferentes do cronograma. <button class="btn-secondary" style="padding:4px 10px;margin-left:6px;" onclick="prepararEnvio()">Enviar agora</button></div>';
   if(calc.ciclos.size) h += '<div class="erro-box">⚠ Há dependências em círculo (uma etapa depende de outra que depende dela). As etapas marcadas com ⚠ estão com a data errada até isso ser corrigido.</div>';
   h += htmlResumo();
   h += htmlConfig(semInicio);
@@ -694,6 +784,9 @@ function htmlResumo(){
   }
   h += kpi('Etapas atrasadas', atrasadas ? '<span class="d-atraso">'+atrasadas+'</span>' : '0', 'pelo % do último relatório');
   h += kpi('Caminho crítico', criticas+' etapas', 'se atrasarem, atrasam a obra');
+  const pend = tarefas.filter(pendenteFornecedor);
+  const pendCrit = pend.filter(t => calc.t[t.id] && calc.t[t.id].critica).length;
+  h += kpi('Prazos de fornecedor', pend.length ? '<span class="'+(pendCrit ? 'd-atraso' : '')+'" style="'+(pendCrit ? '' : 'color:var(--amber)')+'">'+pend.length+' a confirmar</span>' : '<span class="d-adiant">todos confirmados</span>', pendCrit ? pendCrit+' no caminho crítico' : (pend.length ? 'fora do caminho crítico' : ''));
   h += '</div>';
   if(ehSuzana()){
     h += '<div class="toolbar no-print">' + (baseline
@@ -711,18 +804,26 @@ function htmlConfig(semInicio){
   const fer = (config.feriados || []).slice().sort((a,b) => a.data.localeCompare(b.data));
   let h = '<div class="card no-print"><div class="card-label">Calendário da obra</div>';
   if(semInicio) h += '<div class="alert-box">Comece pela data de início da obra: todas as outras datas são calculadas a partir dela.</div>';
-  h += '<div class="row-2">' +
+  const cid = cidadeObra();
+  const faltam = config.data_inicio ? anosFaltando() : [];
+  h += '<div class="row-3">' +
     '<div><label>Data de início da obra</label><input type="date" value="'+(config.data_inicio||'')+'" onchange="mudarInicio(this.value)"></div>' +
+    '<div><label>Município (feriados)</label><select onchange="mudarCidade(this.value)"><option value=""'+(cid?'':' selected')+'>Escolha…</option>' +
+      Object.entries(CIDADES).map(([k,n]) => '<option value="'+k+'"'+(k===cid?' selected':'')+'>'+n+'</option>').join('') + '</select></div>' +
     '<div><label>&nbsp;</label><label class="check"><input type="checkbox" '+(config.sabado?'checked':'')+' onchange="mudarSabado(this.checked)"> Obra trabalha aos sábados</label></div>' +
   '</div>';
+  h += '<div class="hint">Domingos nunca contam; sábados, só se marcar acima. Feriados nacionais, o estadual de SP (9/7) e os do município entram sozinhos ao preencher a data de início. Carnaval e Corpus Christi (quando não é feriado municipal) vêm como ponto facultativo: remova se a obra trabalhar.</div>';
+  if(!cid && config.data_inicio) h += '<div class="alert-box">Escolha o município para trazer os feriados municipais. Alphaville fica parte em Barueri e parte em Santana de Parnaíba, então confira no endereço da obra.</div>';
+  if(semColunaCidade) h += '<div class="alert-box">Para lembrar o município desta obra, rode no Supabase: <code>alter table public.cronograma_config add column if not exists cidade text;</code></div>';
+  if(faltam.length) h += '<div class="alert-box">A obra chega em '+faltam.join(', ')+' e os feriados desse ano ainda não estão no calendário. <button class="btn-secondary" style="padding:4px 10px;margin-left:6px;" onclick="completarFeriados()">Adicionar</button></div>';
   h += '<label>Feriados e dias sem obra ('+fer.length+')</label>';
-  h += '<div class="chips">' + (fer.length ? fer.map(f => '<span class="chip">'+br(deISO(f.data))+' · '+esc(f.nome||'')+'<button title="Remover" onclick="removerFeriado(\''+f.data+'\')">×</button></span>').join('') : '<span class="hint" style="margin:0;">Nenhum. Sem feriados, o cálculo conta esses dias como úteis.</span>') + '</div>';
+  h += '<div class="chips">' + (fer.length ? fer.map(f => '<span class="chip">'+br(deISO(f.data))+' · '+esc(f.nome||'')+'<button title="Remover" onclick="removerFeriado(\''+f.data+'\')">×</button></span>').join('') : '<span class="hint" style="margin:0;">Nenhum ainda.</span>') + '</div>';
   h += '<div class="row-3">' +
-    '<div><input type="date" id="novoFerData"></div>' +
-    '<div><input type="text" id="novoFerNome" placeholder="Ex: Condomínio proíbe obra"></div>' +
-    '<div><button class="btn-secondary" style="width:100%;" onclick="addFeriado()">+ Adicionar dia</button></div>' +
-  '</div>';
-  h += '<button class="btn-add" style="margin-top:0;" onclick="addFeriadosNacionais()">+ Adicionar feriados nacionais (inclui Carnaval e Corpus Christi — remova os que a obra trabalhar)</button>';
+    '<div><label>De</label><input type="date" id="novoFerData"></div>' +
+    '<div><label>Até (opcional, para períodos)</label><input type="date" id="novoFerAte"></div>' +
+    '<div><label>Motivo</label><input type="text" id="novoFerNome" placeholder="Ex: Recesso de fim de ano"></div>' +
+  '</div>' +
+  '<button class="btn-secondary" onclick="addFeriado()">+ Adicionar dia / período sem obra</button>';
   h += '</div>';
   return h;
 }
@@ -756,6 +857,14 @@ function desvioHtml(d){
 }
 const SIT = { atrasada:'Atrasada', risco:'Não começou', andamento:'Em andamento', concluida:'Concluída', futura:'Futura' };
 
+function fornBadge(t, c){
+  if(!dependeFornecedor(t)) return '';
+  if(prazoConfirmado(t)) return '<div><span class="forn forn-ok">✓ prazo confirmado'+(t.fornecedor.nome ? ' · '+esc(t.fornecedor.nome) : '')+'</span></div>';
+  const u = urgenciaFornecedor(t), lim = limiteConfirmacao(t);
+  const grave = c.critica || (u !== null && u <= 10);
+  const quando = !lim ? '' : (u < 0 ? ' · já devia ter sido até '+brCurto(lim) : ' até '+brCurto(lim));
+  return '<div><span class="forn '+(grave ? 'forn-crit' : 'forn-pend')+'">⚠ prazo do fornecedor a confirmar'+quando+'</span></div>';
+}
 function htmlLista(){
   const nums = numeros(), pm = mapaPct(), ref = hoje();
   let h = '<div class="tbl-wrap"><table class="tbl"><thead><tr>' +
@@ -770,7 +879,8 @@ function htmlLista(){
     h += '<tr class="'+(c.critica?'critica':'')+'" onclick="abrirEditor(\''+t.id+'\')">' +
       '<td class="num">'+nums[t.id]+'</td>' +
       '<td><div class="t-nome">'+esc(t.item)+(t.inicio_fixo?' <span title="Não começa antes de '+br(deISO(t.inicio_fixo))+'">📌</span>':'')+(c.ciclo?' <span class="crit" title="Dependência circular">⚠</span>':'')+'</div>' +
-        '<div class="t-tipo">'+esc(t.tipo||'')+(c.critica?' · <span class="crit">caminho crítico</span>':' · folga '+c.folgaTotal+'d')+'</div></td>' +
+        fornBadge(t, c) +
+        '<div class="t-tipo">'+esc(t.tipo||'')+(c.inicioCritico?' · <span class="crit">início crítico</span> · pode durar +'+c.folgaTermino+'d':c.critica?' · <span class="crit">caminho crítico</span>':' · folga '+c.folgaTotal+'d')+'</div></td>' +
       '<td>'+(c.dur === 0 ? 'marco' : c.dur+' d')+'</td>' +
       '<td class="deps">'+depsTexto(t, nums)+'</td>' +
       '<td>'+br(c.inicio)+'</td>' +
@@ -782,7 +892,7 @@ function htmlLista(){
     '</tr>';
   });
   h += '</tbody></table></div>';
-  h += '<div class="hint" style="margin:10px 0 0;">Clique numa etapa para editar. Faixa vermelha à esquerda = caminho crítico. "Folga" = quantos dias úteis a etapa pode atrasar sem mudar o término da obra. O % vem do rascunho atual do relatório.</div>';
+  h += '<div class="hint" style="margin:10px 0 0;">Clique numa etapa para editar. Faixa vermelha à esquerda = caminho crítico. "Início crítico" = atrasar o começo atrasa a obra, mas durar um pouco mais não. "Folga" = quantos dias úteis a etapa pode atrasar sem mudar o término da obra. O % vem do rascunho atual do relatório.</div>';
   return h;
 }
 
@@ -804,6 +914,7 @@ function htmlGantt(){
     '<span><i style="background:var(--salmon)"></i>Etapa</span>' +
     '<span><i style="background:var(--red-alert)"></i>Caminho crítico</span>' +
     '<span><i style="background:var(--green-ok)"></i>Concluída</span>' +
+    '<span><i style="background:var(--salmon);background-image:repeating-linear-gradient(45deg,rgba(255,255,255,.55) 0 3px,transparent 3px 7px)"></i>Prazo de fornecedor não confirmado</span>' +
     '<span><i style="background:var(--brown-light);height:4px;"></i>Linha de base</span>' +
     '<span><i style="background:var(--amber);width:2px;"></i>Hoje</span>' +
   '</div>';
@@ -819,7 +930,7 @@ function htmlGantt(){
     const b = snap[t.id];
     let barra;
     if(c.dur === 0) barra = '<div class="g-marco" style="left:'+(pos(c.inicio)-3)+'px;" title="'+esc(t.item)+' · '+br(c.inicio)+'"></div>';
-    else barra = '<div class="g-bar'+(pct >= 100 ? ' done' : c.critica ? ' crit' : '')+'" style="left:'+pos(c.inicio)+'px;width:'+Math.max(PX,(diasCorridos(c.inicio,c.fim)+1)*PX)+'px;" title="'+esc(t.item)+' · '+br(c.inicio)+' a '+br(c.fim)+(pct?' · '+pct+'%':'')+'">'+(pct > 0 && pct < 100 ? '<div class="pct" style="width:'+pct+'%;"></div>' : '')+'</div>';
+    else barra = '<div class="g-bar'+(pct >= 100 ? ' done' : c.critica ? ' crit' : '')+(pendenteFornecedor(t) ? ' estimado' : '')+'" style="left:'+pos(c.inicio)+'px;width:'+Math.max(PX,(diasCorridos(c.inicio,c.fim)+1)*PX)+'px;" title="'+esc(t.item)+' · '+br(c.inicio)+' a '+br(c.fim)+(pct?' · '+pct+'%':'')+'">'+(pct > 0 && pct < 100 ? '<div class="pct" style="width:'+pct+'%;"></div>' : '')+'</div>';
     const base = b ? '<div class="g-base" style="left:'+pos(deISO(b.inicio))+'px;width:'+Math.max(PX,(diasCorridos(deISO(b.inicio),deISO(b.fim))+1)*PX)+'px;"></div>' : '';
     h += '<div class="g-row"><div class="g-label" title="'+esc(t.item)+'"><span class="n">'+nums[t.id]+'</span>'+esc(t.item)+'</div>' +
       '<div class="g-track" style="width:'+larg+'px;">'+hojeHtml+base+barra+'</div></div>';
@@ -854,8 +965,14 @@ function detalheLog(r){
     if(JSON.stringify(a.deps||[]) !== JSON.stringify(d.deps||[])) partes.push('Dependências: '+esc(depsNomes(a.deps))+' → '+esc(depsNomes(d.deps)));
     if((a.inicio_fixo||null) !== (d.inicio_fixo||null)) partes.push('Não antes de: '+br(deISO(a.inicio_fixo))+' → '+br(deISO(d.inicio_fixo)));
     if(a.tipo !== d.tipo) partes.push('Categoria: '+esc(a.tipo)+' → '+esc(d.tipo));
+    const fa = a.fornecedor || {}, fd = d.fornecedor || {};
+    if(JSON.stringify(fa) !== JSON.stringify(fd)){
+      const txt = f => !f.depende ? 'não depende de fornecedor' : (f.confirmado ? 'prazo confirmado' : 'prazo a confirmar') + (f.nome ? ' ('+esc(f.nome)+')' : '');
+      partes.push('Fornecedor: '+txt(fa)+' → '+txt(fd));
+    }
   } else if(r.acao === 'config'){
     if(a.data_inicio !== d.data_inicio) partes.push('Início da obra: '+br(deISO(a.data_inicio))+' → '+br(deISO(d.data_inicio)));
+    if((a.cidade||null) !== (d.cidade||null)) partes.push('Município: '+esc(CIDADES[a.cidade]||'—')+' → '+esc(CIDADES[d.cidade]||'—'));
     if(a.sabado !== d.sabado) partes.push('Sábado: '+(d.sabado ? 'passa a trabalhar' : 'deixa de trabalhar'));
     if(JSON.stringify(a.feriados||[]) !== JSON.stringify(d.feriados||[])) partes.push('Feriados: '+(a.feriados||[]).length+' → '+(d.feriados||[]).length);
   } else if(r.acao === 'criou'){
@@ -865,7 +982,7 @@ function detalheLog(r){
   } else if(r.acao === 'importou'){
     partes.push((d.quantidade||0)+' etapas · origem: '+esc(d.origem||''));
   } else if(r.acao === 'enviou_relatorio'){
-    partes.push((d.alteradas||0)+' datas atualizadas, '+(d.novas||0)+' etapas novas no relatório');
+    partes.push((d.alteradas||0)+' datas atualizadas, '+(d.novas||0)+' etapas novas no relatório'+(d.previsao ? ' · previsão enviada: '+br(deISO(d.previsao)) : '')+(d.alteracoes_prazo ? ' · '+d.alteracoes_prazo+' alteração(ões) de prazo informadas' : ''));
   }
   if(a.termino && d.termino && a.termino !== d.termino) partes.push('<strong>Término da obra: '+br(deISO(a.termino))+' → '+br(deISO(d.termino))+'</strong>');
   return partes.join('<br>') || '—';
@@ -909,7 +1026,7 @@ const TXT_MOTIVO = 'A linha de base já está congelada. Toda mudança que mexe 
 
 /* ── CALENDÁRIO ─────────────────────────────────────────────────── */
 async function salvarConfig(patch, comMotivo){
-  const antes = { data_inicio: config.data_inicio, sabado: config.sabado, feriados: config.feriados || [] };
+  const antes = { data_inicio: config.data_inicio, sabado: config.sabado, feriados: config.feriados || [], cidade: config.cidade || null };
   let motivo = null;
   if(comMotivo && baseline){
     motivo = await pedirMotivo(TXT_MOTIVO);
@@ -917,40 +1034,57 @@ async function salvarConfig(patch, comMotivo){
   }
   const fimAntes = calc.fim;
   const novo = Object.assign({}, config, patch, { obra_id: obra.id, updated_at: new Date().toISOString(), updated_by: usuarioNome });
-  const { error } = await sb.from('cronograma_config').upsert(novo, { onConflict: 'obra_id' });
+  let { error } = await sb.from('cronograma_config').upsert(novo, { onConflict: 'obra_id' });
+  if(error && /cidade/i.test(error.message)){
+    // Coluna "cidade" ainda não criada no banco: salva o resto e avisa
+    semColunaCidade = true;
+    const semCidade = Object.assign({}, novo); delete semCidade.cidade;
+    ({ error } = await sb.from('cronograma_config').upsert(semCidade, { onConflict: 'obra_id' }));
+  }
   if(error){ alert('Não consegui salvar: '+error.message); renderObra(); return false; }
   config = novo;
   recalcular();
   if(comMotivo){
     await registrarLog('config', null,
       Object.assign(antes, { termino: iso(fimAntes) }),
-      { data_inicio: novo.data_inicio, sabado: novo.sabado, feriados: novo.feriados || [], termino: iso(calc.fim) }, motivo);
+      { data_inicio: novo.data_inicio, sabado: novo.sabado, feriados: novo.feriados || [], cidade: novo.cidade || null, termino: iso(calc.fim) }, motivo);
   }
   renderObra();
   return true;
 }
-function mudarInicio(v){ salvarConfig({ data_inicio: v || null }, tarefas.length > 0); }
+function mudarInicio(v){
+  const patch = { data_inicio: v || null };
+  // 1ª vez: já traz os feriados da cidade para o ano de início e o seguinte
+  if(v && !(config.feriados || []).some(f => f.auto)){
+    const y = deISO(v).getFullYear();
+    patch.feriados = montarFeriados(config.feriados, cidadeObra() || 'outra', [y, y+1], false);
+    if(cidadeObra()) patch.cidade = cidadeObra();
+  }
+  salvarConfig(patch, tarefas.length > 0);
+}
 function mudarSabado(v){ salvarConfig({ sabado: !!v }, tarefas.length > 0); }
+function mudarCidade(v){
+  const anos = Array.from(new Set(Array.from(anosCobertos()).concat(anosNecessarios()))).sort();
+  salvarConfig({ cidade: v || null, feriados: anos.length ? montarFeriados(config.feriados, v || 'outra', anos, true) : (config.feriados || []) }, tarefas.length > 0);
+}
+function completarFeriados(){
+  const faltam = anosFaltando();
+  if(!faltam.length) return alert('Os feriados de todos os anos da obra já estão no calendário.');
+  salvarConfig({ feriados: montarFeriados(config.feriados, cidadeObra() || 'outra', faltam, false) }, tarefas.length > 0);
+}
 function addFeriado(){
-  const data = document.getElementById('novoFerData').value;
+  const de = deISO(document.getElementById('novoFerData').value);
+  const ate = deISO(document.getElementById('novoFerAte').value) || de;
   const nome = document.getElementById('novoFerNome').value.trim() || 'Sem obra';
-  if(!data) return alert('Escolha a data.');
-  const lista = (config.feriados || []).filter(f => f.data !== data);
-  lista.push({ data, nome });
+  if(!de) return alert('Escolha a data.');
+  if(ate < de) return alert('A data final é antes da inicial.');
+  if(diasCorridos(de, ate) > 60) return alert('Período muito longo (máx. 60 dias). Parada maior que isso costuma pedir nova linha de base.');
+  const datas = []; for(let d = de; d <= ate; d = addDias(d,1)) datas.push(iso(d));
+  const set = new Set(datas);
+  const lista = (config.feriados || []).filter(f => !set.has(f.data)).concat(datas.map(data => ({ data, nome })));
   salvarConfig({ feriados: lista }, tarefas.length > 0);
 }
 function removerFeriado(data){ salvarConfig({ feriados: (config.feriados || []).filter(f => f.data !== data) }, tarefas.length > 0); }
-function addFeriadosNacionais(){
-  const ini = deISO(config.data_inicio) || hoje();
-  const fim = calc.fim && calc.fim > ini ? calc.fim : addDias(ini, 365);
-  const anos = []; for(let y = ini.getFullYear(); y <= fim.getFullYear(); y++) anos.push(y);
-  const existentes = new Set((config.feriados || []).map(f => f.data));
-  const novos = [];
-  anos.forEach(y => feriadosNacionais(y).forEach(f => { if(!existentes.has(f.data)) novos.push(f); }));
-  if(!novos.length) return alert('Os feriados nacionais de '+anos.join(', ')+' já estão na lista.');
-  salvarConfig({ feriados: (config.feriados || []).concat(novos) }, tarefas.length > 0);
-}
-
 /* ── EDITOR DE ETAPA ────────────────────────────────────────────── */
 function descendentes(id){ // etapas que dependem (direta ou indiretamente) de id — não podem virar predecessoras dela
   const suc = {};
@@ -971,9 +1105,19 @@ function abrirEditor(id){
   document.getElementById('edDur').value = t ? t.duracao : 5;
   document.getElementById('edFixo').value = t && t.inicio_fixo ? t.inicio_fixo : '';
   document.getElementById('edExcluir').style.display = t ? 'inline-block' : 'none';
+  const f = t && t.fornecedor ? t.fornecedor : {};
+  document.getElementById('edFornDep').checked = t ? dependeFornecedor(t) : false;
+  document.getElementById('edFornNome').value = f.nome || '';
+  document.getElementById('edFornOk').checked = !!f.confirmado;
+  const lim = t ? limiteConfirmacao(t) : null;
+  document.getElementById('edFornInfo').innerHTML =
+    (f.confirmado ? '✓ Confirmado por '+esc(f.confirmado_por||'—')+' em '+br(deISO(f.confirmado_em))+'. ' : (lim ? '<strong>Confirmar até '+br(lim)+'</strong> (antes de começar a etapa anterior). ' : '')) +
+    'O tempo de produção fica na folga da dependência (ex.: "após Medição marcenaria +25"). Ajuste para o prazo que o fornecedor informou e só então marque como confirmado.' +
+    (semColunaFornecedor ? '<br><span style="color:var(--amber)">Para salvar isto, rode no Supabase: <code>alter table public.cronograma_tarefas add column if not exists fornecedor jsonb;</code></span>' : '');
+  atualizarFornUI();
   const c = t ? calc.t[t.id] : null;
   document.getElementById('edCalc').innerHTML = c
-    ? '<div class="info-box">Hoje calculado: <strong>'+br(c.inicio)+' a '+br(c.fim)+'</strong> · '+(c.critica ? '<span class="crit">no caminho crítico</span>' : 'folga de '+c.folgaTotal+' dias úteis')+'</div>'
+    ? '<div class="info-box">Hoje calculado: <strong>'+br(c.inicio)+' a '+br(c.fim)+'</strong> · '+(c.inicioCritico ? '<span class="crit">início crítico</span>: se começar depois, atrasa a obra; mas pode durar até '+c.folgaTermino+' dias úteis a mais sem mudar o término' : c.critica ? '<span class="crit">no caminho crítico</span>: qualquer atraso aqui atrasa a obra' : 'folga de '+c.folgaTotal+' dias úteis')+'</div>'
     : '';
   renderEdDeps();
   document.getElementById('modalEditor').classList.add('open');
@@ -993,6 +1137,17 @@ function renderEdDeps(){
     '</div>'
   ).join('') || '<div class="hint" style="margin:0;">Sem dependências: começa na data de início da obra (ou no "não começar antes de").</div>';
 }
+function atualizarFornUI(){ document.getElementById('edFornBox').style.display = document.getElementById('edFornDep').checked ? 'block' : 'none'; }
+function lerFornecedorEditor(anterior){
+  const dep = document.getElementById('edFornDep').checked;
+  if(!dep) return { depende: false };
+  const ok = document.getElementById('edFornOk').checked;
+  const nome = document.getElementById('edFornNome').value.trim();
+  const a = anterior || {};
+  const f = { depende: true, nome: nome || null, confirmado: ok };
+  if(ok){ f.confirmado_por = a.confirmado ? (a.confirmado_por || usuarioNome) : usuarioNome; f.confirmado_em = a.confirmado ? (a.confirmado_em || iso(hoje())) : iso(hoje()); }
+  return f;
+}
 function addDepEditor(){ _edit.deps.push({ id:'', tipo:'TI', folga:0 }); renderEdDeps(); }
 function fecharEditor(){ fecharModal('modalEditor'); _edit = null; }
 
@@ -1011,22 +1166,24 @@ async function salvarEditor(){
   const bloqueadas = _edit.id ? descendentes(_edit.id) : new Set();
   if(deps.some(d => d.id === _edit.id || bloqueadas.has(d.id))) return alert('Essa dependência criaria um círculo (uma etapa esperando por ela mesma).');
 
-  const novo = { item, tipo, duracao, inicio_fixo, deps };
   const t = _edit.id ? tarefas.find(x => x.id === _edit.id) : null;
+  const fornecedor = lerFornecedorEditor(t && t.fornecedor);
+  if(fornecedor.confirmado && !fornecedor.nome) return alert('Para marcar o prazo como confirmado, informe qual fornecedor confirmou.');
+  const novo = { item, tipo, duracao, inicio_fixo, deps, fornecedor };
   const fimAntes = calc.fim;
   const btn = document.getElementById('edSalvar');
 
   if(t){
-    const antes = { item:t.item, tipo:t.tipo, duracao:t.duracao, inicio_fixo:t.inicio_fixo||null, deps:t.deps||[] };
+    const antes = { item:t.item, tipo:t.tipo, duracao:t.duracao, inicio_fixo:t.inicio_fixo||null, deps:t.deps||[], fornecedor: t.fornecedor || { depende: dependeFornecedor(t) } };
     const mudouData = antes.duracao !== duracao || antes.inicio_fixo !== inicio_fixo || JSON.stringify(antes.deps) !== JSON.stringify(deps);
-    const mudouAlgo = mudouData || antes.item !== item || antes.tipo !== tipo;
+    const mudouAlgo = mudouData || antes.item !== item || antes.tipo !== tipo || JSON.stringify(antes.fornecedor) !== JSON.stringify(fornecedor);
     if(!mudouAlgo) return fecharEditor();
     let motivo = null;
     if(baseline && mudouData){ motivo = await pedirMotivo(TXT_MOTIVO); if(!motivo) return; }
     btn.disabled = true;
-    const { data, error } = await sb.from('cronograma_tarefas')
-      .update(Object.assign({}, novo, { rev: (t.rev||1)+1, updated_at: new Date().toISOString(), updated_by: usuarioNome }))
-      .eq('id', t.id).eq('rev', t.rev||1).select();
+    const patch = Object.assign({}, novo, { rev: (t.rev||1)+1, updated_at: new Date().toISOString(), updated_by: usuarioNome });
+    const { data, error } = await gravarComFallback(com => sb.from('cronograma_tarefas')
+      .update(com ? patch : semFornecedor(patch)).eq('id', t.id).eq('rev', t.rev||1).select());
     btn.disabled = false;
     if(error) return alert('Não consegui salvar: '+error.message);
     if(!data || !data.length){
@@ -1041,7 +1198,7 @@ async function salvarEditor(){
     if(baseline){ motivo = await pedirMotivo(TXT_MOTIVO + ' Incluir etapa depois do prazo combinado costuma ser aditivo de escopo.'); if(!motivo) return; }
     btn.disabled = true;
     const linha = Object.assign({ id: novoId(), obra_id: obra.id, ordem: maxOrdem()+1, rev:1, updated_by: usuarioNome }, novo);
-    const { data, error } = await sb.from('cronograma_tarefas').insert(linha).select().single();
+    const { data, error } = await gravarComFallback(com => sb.from('cronograma_tarefas').insert(com ? linha : semFornecedor(linha)).select().single());
     btn.disabled = false;
     if(error) return alert('Não consegui criar: '+error.message);
     tarefas.push(data);
@@ -1050,6 +1207,7 @@ async function salvarEditor(){
   }
   fecharEditor();
   renderObra();
+  if(semColunaFornecedor && fornecedor.depende) alert('A etapa foi salva, mas a informação do fornecedor NÃO foi guardada: falta rodar no Supabase esta linha:\n\nalter table public.cronograma_tarefas add column if not exists fornecedor jsonb;');
 }
 
 async function excluirTarefa(){
@@ -1097,7 +1255,7 @@ async function motivoParaIncluir(){
 }
 async function inserirTarefas(linhas, origem, motivo){
   const fimAntes = calc.fim;
-  const { data, error } = await sb.from('cronograma_tarefas').insert(linhas).select();
+  const { data, error } = await gravarComFallback(com => sb.from('cronograma_tarefas').insert(com ? linhas : semFornecedor(linhas)).select());
   if(error){ alert('Não consegui criar as etapas: '+error.message); return false; }
   tarefas = tarefas.concat(data || []);
   recalcular();
@@ -1114,7 +1272,8 @@ async function criarDoModelo(){
   const base = maxOrdem();
   const linhas = MODELO.map((m,k) => ({
     id: ids[k], obra_id: obra.id, ordem: base+k+1, tipo: m.tipo, item: m.item, duracao: m.dur,
-    deps: m.deps.map(([i,tp,f]) => ({ id: ids[i], tipo: tp, folga: f })), inicio_fixo: null, rev: 1, updated_by: usuarioNome
+    deps: m.deps.map(([i,tp,f]) => ({ id: ids[i], tipo: tp, folga: f })), inicio_fixo: null, rev: 1, updated_by: usuarioNome,
+    fornecedor: m.forn ? { depende: true, confirmado: false } : { depende: false }
   }));
   await inserirTarefas(linhas, 'modelo sugerido', motivo);
 }
@@ -1231,12 +1390,17 @@ async function congelarBase(){
   if(!tarefas.length) return alert('Crie as etapas primeiro.');
   if(!config.data_inicio) return alert('Preencha a data de início da obra.');
   if(calc.ciclos.size) return alert('Corrija as dependências em círculo antes de congelar.');
+  const pendB = tarefas.filter(pendenteFornecedor);
+  if(pendB.length){
+    const crit = pendB.filter(t => calc.t[t.id].critica);
+    if(!confirm('⚠ ATENÇÃO: '+pendB.length+' etapa(s) dependem de prazo de fornecedor ainda NÃO confirmado'+(crit.length ? ', '+crit.length+' delas no caminho crítico' : '')+':\n\n- '+pendB.map(t => t.item).join('\n- ')+'\n\nO prazo que você vai combinar com o cliente estará baseado em estimativa. O recomendado é confirmar com os fornecedores antes.\n\nCongelar mesmo assim?')) return;
+  }
   let motivo = null;
   if(baseline){
     motivo = await pedirMotivo('A nova linha de base passa a ser o prazo de referência. A v'+baseline.versao+' continua guardada. Use quando o prazo for renegociado com o cliente, por exemplo num aditivo.');
     if(!motivo) return;
   } else if(!confirm('Congelar a linha de base?\n\nAs datas de hoje viram o PRAZO COMBINADO com o cliente (término '+br(calc.fim)+'). A partir daí, toda mudança de data pede motivo e fica registrada.\n\nFaça isso depois de revisar o cronograma e, de preferência, depois de o cliente aprovar as datas.')) return;
-  const snap = { termino: iso(calc.fim), inicio_obra: config.data_inicio, tarefas: {} };
+  const snap = { termino: iso(calc.fim), inicio_obra: config.data_inicio, tarefas: {}, prazos_nao_confirmados: tarefas.filter(pendenteFornecedor).map(t => t.item) };
   tarefas.forEach(t => { const c = calc.t[t.id]; snap.tarefas[t.id] = { item: t.item, inicio: iso(c.inicio), fim: iso(c.fim) }; });
   const versao = (baseline ? baseline.versao : 0) + 1;
   const { data, error } = await sb.from('cronograma_baselines').insert({
@@ -1249,6 +1413,51 @@ async function congelarBase(){
 }
 
 /* ── ENVIAR AO RELATÓRIO ────────────────────────────────────────── */
+/* Categoria que o CLIENTE vê (o detalhe escrito pela equipe fica só interno) */
+const CATEGORIA_CLIENTE = { 'Replanejamento interno': 'Ajuste de planejamento' };
+const catCliente = c => CATEGORIA_CLIENTE[c] || c || 'Ajuste de planejamento';
+
+/* Bloco de prazo que vai para o relatório: contratual (base v1) x vigente (última base) x previsão atual,
+   mais as alterações com motivo feitas desde o último relatório aprovado. */
+async function montarPrazoRelatorio(){
+  if(!calc.fim) return null;
+  const prazo = { previsao: iso(calc.fim), atualizado_em: iso(hoje()), alteracoes: [], original: {} };
+  if(!baseline) return prazo;
+  let v1 = baseline;
+  if(baseline.versao > 1){
+    const r = await sb.from('cronograma_baselines').select('*').eq('obra_id', obra.id).eq('versao', 1).limit(1);
+    if(!r.error && r.data && r.data.length) v1 = r.data[0];
+  }
+  prazo.contratual = v1.snapshot && v1.snapshot.termino;
+  prazo.vigente = baseline.snapshot && baseline.snapshot.termino;
+  prazo.desvio = difUteis(deISO(prazo.vigente), calc.fim);
+  Object.values((baseline.snapshot && baseline.snapshot.tarefas) || {}).forEach(b => {
+    prazo.original[chaveNome(b.item)] = { inicio: br(deISO(b.inicio)), fim: br(deISO(b.fim)) };
+  });
+  // Alterações desde o último relatório aprovado
+  let desde = null;
+  const ap = await sb.from('relatorios').select('created_at').eq('obra_id', obra.id).eq('status','aprovado').order('created_at', { ascending:false }).limit(1);
+  if(!ap.error && ap.data && ap.data.length) desde = ap.data[0].created_at;
+  logRows.slice().reverse().forEach(r => {
+    if(desde && r.criado_em <= desde) return;
+    if(r.acao === 'linha_de_base' && r.depois && r.depois.versao > 1){
+      prazo.alteracoes.push({ etapa: 'Prazo revisado (aditivo)', categoria: catCliente(r.motivo_categoria), impacto: null });
+      return;
+    }
+    if(!r.motivo_categoria) return; // antes da linha de base não há "alteração de prazo"
+    const imp = (r.antes && r.antes.termino && r.depois && r.depois.termino) ? difUteis(deISO(r.antes.termino), deISO(r.depois.termino)) : null;
+    if(!imp) return; // mudança absorvida pela folga não altera o prazo do cliente
+    prazo.alteracoes.push({ etapa: r.tarefa_nome || (r.acao === 'config' ? 'Calendário da obra' : 'Cronograma'), categoria: catCliente(r.motivo_categoria), impacto: imp });
+  });
+  return prazo;
+}
+function relatorioDesatualizado(){
+  if(!tarefas.length || calc.ciclos.size) return false;
+  const p = planoEnvio(etapasDoRascunho(rasc));
+  if(p.alteradas.length || p.novas.length) return true;
+  const pr = rasc && rasc.dados && rasc.dados.prazo;
+  return !pr || pr.previsao !== iso(calc.fim) || (baseline && pr.vigente !== (baseline.snapshot && baseline.snapshot.termino));
+}
 function planoEnvio(etapasRel){
   const porChave = {};
   etapasRel.forEach((e,i) => { const k = chaveNome(e.item); if(k && porChave[k] === undefined) porChave[k] = i; });
@@ -1289,15 +1498,18 @@ async function prepararEnvio(){
   if(r && minutos !== null && minutos < 30 && r.updated_by && r.updated_by !== usuarioNome){
     h += '<div class="erro-box">⚠ <strong>'+esc(r.updated_by)+'</strong> mexeu no relatório desta obra há '+minutos+' min. Se ainda estiver com ele aberto, o salvamento automático pode sobrescrever estas datas. Peça para fechar ou recarregar a página antes de enviar.</div>';
   }
-  if(!plano.alteradas.length && !plano.novas.length){
-    h += '<div class="info-box">As datas do relatório já estão iguais às do cronograma. Nada a enviar.</div>';
+  const prazoDesatualizado = relatorioDesatualizado();
+  if(!plano.alteradas.length && !plano.novas.length && !prazoDesatualizado){
+    h += '<div class="info-box">O relatório já está igual ao cronograma. Nada a enviar.</div>';
     document.getElementById('btnConfirmarEnvio').style.display = 'none';
   } else {
+    if(!plano.alteradas.length && !plano.novas.length) h += '<div class="info-box">As datas das etapas já estão iguais; vai atualizar o bloco "Prazo da obra" do relatório.</div>';
     document.getElementById('btnConfirmarEnvio').style.display = 'inline-block';
     if(plano.alteradas.length) h += '<div class="card-label">Datas que vão mudar ('+plano.alteradas.length+')</div><div class="lista-envio">' + plano.alteradas.map(a => '<div><strong>'+esc(a.item)+'</strong>: '+esc(a.antes)+' → '+a.ini+' a '+a.fim+'</div>').join('') + '</div>';
     if(plano.novas.length) h += '<div class="card-label">Etapas novas no relatório ('+plano.novas.length+')</div><div class="lista-envio">' + plano.novas.map(a => '<div><strong>'+esc(a.item)+'</strong>: '+a.ini+' a '+a.fim+'</div>').join('') + '</div>';
   }
   if(plano.soRelatorio.length) h += '<div class="alert-box">Estas etapas existem no relatório mas não no cronograma, e ficam como estão: '+plano.soRelatorio.map(esc).join(', ')+'. Se forem a mesma etapa com outro nome, use o mesmo nome nos dois lados.</div>';
+  if(baseline) h += '<div class="info-box">O relatório também recebe o bloco <strong>Prazo da obra</strong>: prazo contratual, previsão atual, diferença em dias úteis e as alterações de prazo desde o último relatório aprovado (etapa, categoria do motivo e impacto; o detalhe escrito pela equipe não vai para o cliente). "Replanejamento interno" aparece como "Ajuste de planejamento".</div>';
   h += '<div class="hint" style="margin:6px 0 0;">Só as datas são enviadas; status, % e observações do relatório não são tocados. Quem estiver com o relatório desta obra aberto precisa recarregar a página.</div>';
   document.getElementById('envioConteudo').innerHTML = h;
   document.getElementById('modalEnvio').classList.add('open');
@@ -1312,14 +1524,15 @@ async function confirmarEnvio(){
     plano.alteradas.forEach(a => { etapasRel[a.i].inicio = a.ini; etapasRel[a.i].fim = a.fim; });
     plano.novas.forEach(n => etapasRel.push({ tipo: n.tipo, item: n.item, inicio: n.ini, fim: n.fim, pct:0, status:'', obs:'', proximo:'', manual:true }));
     const etapasFinal = ordenarEtapasRelatorio(etapasRel);
+    const prazo = await montarPrazoRelatorio();
     const agora = new Date().toISOString();
     if(r){
-      const dados = Object.assign({}, r.dados || {}, { etapas: etapasFinal, savedAt: Date.now() });
+      const dados = Object.assign({}, r.dados || {}, { etapas: etapasFinal, prazo, savedAt: Date.now() });
       const { error } = await sb.from('relatorios').update({ dados, updated_at: agora, updated_by: usuarioNome }).eq('id', r.id);
       if(error) throw error;
     } else {
       const dados = { obraKey: obra.key, savedAt: Date.now(), cliente: obra.cliente || '', semana: '', cidade: obra.cidade || '', responsavel: '', transcricao: '',
-        etapas: etapasFinal, ambFotos: [], qtdFotos: 0, realizacoes: [], previstos: [], pendencias: [], imprevistos: [], observacoes: [] };
+        etapas: etapasFinal, ambFotos: [], qtdFotos: 0, realizacoes: [], previstos: [], pendencias: [], imprevistos: [], observacoes: [], prazo };
       const { error } = await sb.from('relatorios').insert({ obra_id: obra.id, semana: '', status: 'rascunho', dados, created_by: usuarioNome, updated_by: usuarioNome });
       if(error) throw error;
     }
@@ -1331,7 +1544,7 @@ async function confirmarEnvio(){
     const baseFinal = ordenarEtapasRelatorio(baseObra);
     const ob = await sb.from('obras').update({ etapas_base: baseFinal }).eq('id', obra.id);
     if(!ob.error) obra.etapas_base = baseFinal;
-    await registrarLog('enviou_relatorio', null, null, { alteradas: plano.alteradas.length, novas: plano.novas.length });
+    await registrarLog('enviou_relatorio', null, null, { alteradas: plano.alteradas.length, novas: plano.novas.length, previsao: prazo && prazo.previsao, alteracoes_prazo: prazo ? prazo.alteracoes.length : 0 });
     rasc = await buscarRascunho();
     fecharModal('modalEnvio');
     renderObra();
