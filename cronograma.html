@@ -1,0 +1,1368 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Suzana Bonolo · Cronograma de Obra</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;500&family=Inter:wght@300;400;500;600&display=swap');
+:root{
+  --salmon:#E8A090;--salmon-light:#F2C4B8;--salmon-bg:#FBF0ED;
+  --brown-dark:#3D2B2B;--brown-mid:#6B4A4A;--brown-light:#C4A09A;
+  --white:#FFFFFF;--off-white:#FAF8F7;--gray-light:#F0EDEC;--gray-mid:#D5CECE;
+  --green-ok:#5C8A6E;--amber:#C88A3A;--red-alert:#C05050;
+  --shadow:0 2px 16px rgba(61,43,43,0.08);
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Inter',sans-serif;background:var(--off-white);color:var(--brown-dark);min-height:100vh;}
+
+.header{background:var(--brown-dark);padding:18px 32px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;}
+.header-brand{font-family:'Cormorant Garamond',serif;font-weight:300;font-size:22px;color:var(--salmon-light);letter-spacing:.04em;}
+.header-sub{font-size:10px;color:var(--brown-light);letter-spacing:.18em;text-transform:uppercase;margin-top:2px;}
+.header-right{display:flex;align-items:center;gap:16px;flex-wrap:wrap;}
+.header-link{font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;padding:6px 14px;border-radius:2px;cursor:pointer;text-decoration:none;background:var(--salmon);color:var(--brown-dark);}
+.header-link.sec{background:none;border:1px solid var(--brown-light);color:var(--salmon-light);}
+.header-user{font-size:12px;color:var(--salmon-light);text-align:right;}
+.header-user span{display:block;font-size:10px;color:var(--brown-light);letter-spacing:.1em;text-transform:uppercase;cursor:pointer;}
+
+.container{max-width:1120px;margin:0 auto;padding:28px 20px;}
+.sec-title{font-family:'Cormorant Garamond',serif;font-size:26px;font-weight:400;margin-bottom:4px;}
+.sec-sub{font-size:13px;color:var(--brown-mid);margin-bottom:20px;}
+.card{background:var(--white);border-radius:4px;box-shadow:var(--shadow);padding:22px;margin-bottom:14px;}
+.card-label{font-size:11px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--salmon);margin-bottom:12px;}
+.hint{font-size:11px;color:var(--brown-light);margin:-8px 0 14px;line-height:1.5;}
+
+label{display:block;font-size:11px;font-weight:500;color:var(--brown-mid);letter-spacing:.06em;text-transform:uppercase;margin-bottom:5px;}
+input[type=text],input[type=number],input[type=email],input[type=password],input[type=date],select,textarea{width:100%;padding:9px 13px;border:1px solid var(--gray-mid);border-radius:3px;font-family:'Inter',sans-serif;font-size:13px;color:var(--brown-dark);background:var(--off-white);margin-bottom:14px;outline:none;}
+input:focus,select:focus,textarea:focus{border-color:var(--salmon);background:var(--white);}
+textarea{resize:vertical;min-height:70px;}
+.row-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;}
+.row-2{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+.check{display:flex;align-items:center;gap:8px;font-size:13px;text-transform:none;letter-spacing:0;color:var(--brown-dark);cursor:pointer;margin-bottom:14px;}
+.check input{width:auto;margin:0;}
+
+.info-box{background:#EAF3EE;border:1px solid #B8D9C4;border-radius:3px;padding:12px 16px;font-size:12px;color:var(--green-ok);margin-bottom:14px;line-height:1.5;}
+.alert-box{background:#FDF4E7;border:1px solid #F0D5A0;border-radius:3px;padding:12px 16px;font-size:12px;color:var(--amber);margin-bottom:14px;line-height:1.5;}
+.erro-box{background:#FAEAEA;border:1px solid #E8B8B8;border-radius:3px;padding:12px 16px;font-size:12px;color:var(--red-alert);margin-bottom:14px;line-height:1.5;}
+
+.btn-primary{background:var(--salmon);color:var(--brown-dark);border:none;padding:10px 20px;font-family:'Inter',sans-serif;font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;border-radius:2px;cursor:pointer;}
+.btn-primary:hover{background:var(--salmon-light);}
+.btn-primary:disabled{opacity:.55;cursor:wait;}
+.btn-secondary{background:none;color:var(--brown-mid);border:1px solid var(--gray-mid);padding:10px 18px;font-family:'Inter',sans-serif;font-size:12px;font-weight:500;border-radius:2px;cursor:pointer;}
+.btn-secondary:hover{border-color:var(--salmon);color:var(--salmon);}
+.btn-dark{background:var(--brown-dark);color:var(--salmon-light);border:none;padding:10px 18px;font-size:12px;font-weight:600;letter-spacing:.06em;border-radius:2px;cursor:pointer;}
+.btn-add{background:none;border:1px dashed var(--gray-mid);color:var(--brown-light);font-size:12px;padding:8px 16px;border-radius:3px;cursor:pointer;width:100%;margin-top:8px;}
+.btn-add:hover{border-color:var(--salmon);color:var(--salmon);}
+.btn-danger-txt{background:none;border:none;color:var(--red-alert);font-size:12px;cursor:pointer;padding:10px 0;}
+.btn-row{display:flex;gap:10px;justify-content:flex-end;align-items:center;margin-top:18px;flex-wrap:wrap;}
+.toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;}
+
+.page{display:none;}.page.active{display:block;}
+.loading{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--brown-mid);padding:10px 0;}
+.spinner{width:18px;height:18px;border:2px solid var(--gray-mid);border-top-color:var(--salmon);border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0;}
+@keyframes spin{to{transform:rotate(360deg);}}
+
+.sel-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:16px;}
+.sel-card{background:var(--white);border:1.5px solid var(--gray-mid);border-radius:6px;padding:22px;cursor:pointer;}
+.sel-card:hover{border-color:var(--salmon);box-shadow:var(--shadow);}
+.sel-card-name{font-family:'Cormorant Garamond',serif;font-size:20px;margin-bottom:4px;}
+.sel-card-client{font-size:12px;color:var(--brown-mid);}
+
+/* resumo */
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:14px;}
+.kpi{background:var(--off-white);border-radius:4px;padding:12px 14px;}
+.kpi-l{font-size:10px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--brown-light);margin-bottom:4px;}
+.kpi-v{font-size:18px;font-weight:600;}
+.kpi-s{font-size:11px;color:var(--brown-mid);margin-top:2px;}
+
+/* chips de feriado */
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;}
+.chip{font-size:11px;background:var(--salmon-bg);color:var(--brown-mid);border:1px solid var(--salmon-light);border-radius:12px;padding:3px 6px 3px 10px;display:flex;align-items:center;gap:4px;}
+.chip button{background:none;border:none;color:var(--brown-light);cursor:pointer;font-size:13px;line-height:1;}
+.chip button:hover{color:var(--red-alert);}
+
+/* abas */
+.tabs{display:flex;gap:0;border-bottom:1px solid var(--gray-mid);margin-bottom:14px;}
+.tab{padding:10px 16px;font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--brown-light);cursor:pointer;border-bottom:2px solid transparent;}
+.tab.active{color:var(--brown-dark);border-bottom-color:var(--salmon);}
+
+/* tabela */
+.tbl-wrap{overflow-x:auto;background:var(--white);border-radius:4px;box-shadow:var(--shadow);}
+table.tbl{width:100%;border-collapse:collapse;font-size:12px;min-width:880px;}
+.tbl th{background:var(--salmon-bg);padding:8px 10px;text-align:left;font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--brown-mid);white-space:nowrap;}
+.tbl td{padding:9px 10px;border-bottom:1px solid var(--gray-light);vertical-align:top;}
+.tbl tbody tr{cursor:pointer;}
+.tbl tbody tr:hover{background:var(--off-white);}
+.tbl tr.critica td:first-child{box-shadow:inset 3px 0 0 var(--red-alert);}
+.tbl td.num{color:var(--brown-light);font-weight:600;width:34px;}
+.t-nome{font-weight:600;}
+.t-tipo{font-size:10px;color:var(--brown-light);text-transform:uppercase;letter-spacing:.06em;margin-top:2px;}
+.crit{color:var(--red-alert);font-weight:600;}
+.deps{color:var(--brown-mid);font-size:11px;}
+.badge{font-size:10px;font-weight:600;padding:2px 8px;border-radius:2px;white-space:nowrap;}
+.s-atrasada{background:#FAEAEA;color:var(--red-alert);}
+.s-risco{background:#FDF4E7;color:var(--amber);}
+.s-andamento{background:var(--salmon-bg);color:#B86B58;}
+.s-concluida{background:#EAF3EE;color:var(--green-ok);}
+.s-futura{background:var(--gray-light);color:var(--brown-light);}
+.d-atraso{color:var(--red-alert);font-weight:600;}
+.d-adiant{color:var(--green-ok);font-weight:600;}
+.d-ok{color:var(--brown-light);}
+
+/* gantt */
+.gantt-wrap{overflow-x:auto;background:var(--white);border-radius:4px;box-shadow:var(--shadow);}
+.g-row{display:flex;border-bottom:1px solid var(--gray-light);}
+.g-label{position:sticky;left:0;z-index:2;background:var(--white);width:220px;min-width:220px;padding:0 10px;font-size:11px;display:flex;align-items:center;gap:6px;border-right:1px solid var(--gray-mid);overflow:hidden;white-space:nowrap;text-overflow:ellipsis;}
+.g-label .n{color:var(--brown-light);font-weight:600;}
+.g-track{position:relative;height:34px;flex-shrink:0;}
+.g-head .g-track{height:28px;}
+.g-head .g-label{font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--brown-mid);background:var(--salmon-bg);}
+.g-week{position:absolute;top:0;bottom:0;border-left:1px solid var(--gray-light);font-size:9px;color:var(--brown-light);padding:8px 0 0 3px;white-space:nowrap;}
+.g-bar{position:absolute;top:8px;height:13px;border-radius:2px;background:var(--salmon);print-color-adjust:exact;-webkit-print-color-adjust:exact;}
+.g-bar.crit{background:var(--red-alert);}
+.g-bar.done{background:var(--green-ok);}
+.g-bar .pct{position:absolute;left:0;top:0;bottom:0;background:rgba(61,43,43,.28);border-radius:2px;}
+.g-base{position:absolute;top:24px;height:4px;border-radius:2px;background:var(--brown-light);opacity:.55;print-color-adjust:exact;-webkit-print-color-adjust:exact;}
+.g-marco{position:absolute;top:8px;width:13px;height:13px;transform:rotate(45deg);background:var(--brown-dark);print-color-adjust:exact;-webkit-print-color-adjust:exact;}
+.g-hoje{position:absolute;top:0;bottom:0;width:2px;background:var(--amber);z-index:1;}
+.g-legend{display:flex;gap:16px;flex-wrap:wrap;font-size:11px;color:var(--brown-mid);margin:10px 0;}
+.g-legend i{display:inline-block;width:14px;height:8px;border-radius:2px;margin-right:5px;vertical-align:middle;}
+
+/* histórico */
+.log-item{padding:10px 0;border-bottom:1px solid var(--gray-light);font-size:12px;}
+.log-item:last-child{border-bottom:none;}
+.log-meta{font-size:10px;color:var(--brown-light);letter-spacing:.04em;margin-bottom:3px;}
+.log-motivo{margin-top:4px;font-size:11px;color:var(--brown-mid);background:var(--off-white);padding:6px 10px;border-radius:3px;}
+
+/* modais */
+.modal-overlay{position:fixed;inset:0;background:rgba(61,43,43,.45);z-index:100;display:none;align-items:center;justify-content:center;padding:16px;}
+.modal-overlay.open{display:flex;}
+#modalMotivo{z-index:110;}
+.modal{background:var(--white);border-radius:6px;padding:28px;width:min(520px,100%);max-height:90vh;overflow-y:auto;box-shadow:0 8px 40px rgba(61,43,43,.18);}
+.modal.lg{width:min(680px,100%);}
+.modal h3{font-family:'Cormorant Garamond',serif;font-size:22px;font-weight:400;margin-bottom:16px;}
+.modal-p{font-size:13px;color:var(--brown-mid);margin-bottom:14px;line-height:1.5;}
+.dep-row{display:grid;grid-template-columns:1fr 150px 70px 28px;gap:6px;align-items:center;margin-bottom:6px;}
+.dep-row select,.dep-row input{margin-bottom:0;font-size:12px;padding:7px 8px;}
+.dep-row button{background:none;border:none;color:var(--brown-light);font-size:16px;cursor:pointer;}
+.dep-row button:hover{color:var(--red-alert);}
+.lista-envio{font-size:12px;margin-bottom:12px;}
+.lista-envio div{padding:4px 0;border-bottom:1px solid var(--gray-light);}
+
+@media(max-width:640px){
+  .header{padding:14px 16px;}
+  .container{padding:16px;}
+  .row-3,.row-2{grid-template-columns:1fr;gap:0;}
+  .dep-row{grid-template-columns:1fr 1fr;}
+  .g-label{width:140px;min-width:140px;}
+  .modal{padding:20px;}
+}
+@media print{
+  @page{size:landscape;margin:10mm;}
+  .no-print,.header,.tabs,.modal-overlay{display:none!important;}
+  body{background:white;}
+  .container{max-width:none;padding:0;}
+  .card,.tbl-wrap,.gantt-wrap{box-shadow:none;}
+  .gantt-wrap{overflow:visible;}
+  .print-only{display:block!important;}
+}
+.print-only{display:none;}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <div class="header-brand">Suzana Bonolo</div>
+    <div class="header-sub">Interiores · Cronograma de Obra</div>
+  </div>
+  <div class="header-right">
+    <a class="header-link sec" href="index.html">← Relatório</a>
+    <span class="header-link" id="btnObras" style="display:none;" onclick="voltarSeletor()">Obras</span>
+    <div class="header-user" id="userArea" style="display:none;"><div id="userName"></div><span onclick="sair()">Sair</span></div>
+  </div>
+</div>
+
+<!-- LOGIN -->
+<div class="page" id="pageLogin">
+<div class="container" style="max-width:420px;">
+  <div class="card" style="margin-top:40px;">
+    <div class="sec-title" style="text-align:center;">Entrar</div>
+    <div class="sec-sub" style="text-align:center;">Mesmo login do relatório de obra</div>
+    <div id="loginErro" class="erro-box" style="display:none;"></div>
+    <label>E-mail</label><input type="email" id="loginEmail" autocomplete="username">
+    <label>Senha</label><input type="password" id="loginSenha" autocomplete="current-password" onkeydown="if(event.key==='Enter')fazerLogin()">
+    <button class="btn-primary" id="btnLogin" style="width:100%;" onclick="fazerLogin()">Entrar</button>
+  </div>
+</div>
+</div>
+
+<!-- SELETOR -->
+<div class="page" id="pageSel">
+<div class="container">
+  <div class="sec-title">Cronogramas</div>
+  <div class="sec-sub">Escolha a obra.</div>
+  <div class="sel-grid" id="selGrid"></div>
+</div>
+</div>
+
+<!-- OBRA -->
+<div class="page" id="pageObra">
+<div class="container" id="obraConteudo"></div>
+</div>
+
+<!-- MODAL: editar etapa -->
+<div class="modal-overlay" id="modalEditor">
+<div class="modal lg">
+  <h3 id="edTitulo">Etapa</h3>
+  <label>Nome da etapa</label>
+  <input type="text" id="edItem" placeholder="Ex: Instalação de marcenaria">
+  <div class="row-3">
+    <div><label>Categoria</label><select id="edTipo"></select></div>
+    <div><label>Duração (dias úteis)</label><input type="number" id="edDur" min="0" step="1"></div>
+    <div><label>Não começar antes de</label><input type="date" id="edFixo"></div>
+  </div>
+  <div class="hint">Duração 0 = marco (ex.: "Entrega das chaves"). Use "não começar antes de" só para datas travadas por fora do cronograma, como a entrega de um fornecedor ou a liberação do condomínio.</div>
+  <label>Depende de</label>
+  <div class="hint" style="margin:0 0 8px;">"Após o término": só começa depois que a outra terminar. "Junto com o início": começa quando a outra começar. Folga = dias úteis a mais de espera (ex.: tempo de produção da marcenaria). Pode ser negativa.</div>
+  <div id="edDeps"></div>
+  <button class="btn-add" onclick="addDepEditor()">+ Adicionar dependência</button>
+  <div id="edCalc" style="margin-top:14px;"></div>
+  <div class="btn-row">
+    <button class="btn-danger-txt" id="edExcluir" onclick="excluirTarefa()">Excluir etapa</button>
+    <span style="flex:1;"></span>
+    <button class="btn-secondary" onclick="fecharEditor()">Cancelar</button>
+    <button class="btn-primary" id="edSalvar" onclick="salvarEditor()">Salvar</button>
+  </div>
+</div>
+</div>
+
+<!-- MODAL: motivo da mudança -->
+<div class="modal-overlay" id="modalMotivo">
+<div class="modal">
+  <h3>Por que essa mudança?</h3>
+  <p class="modal-p" id="motivoTexto"></p>
+  <label>Motivo</label>
+  <select id="motivoCat"></select>
+  <label>Detalhe</label>
+  <textarea id="motivoDet" placeholder="Ex: marmoraria atrasou a entrega das bancadas em 1 semana"></textarea>
+  <div id="motivoErro" class="erro-box" style="display:none;"></div>
+  <div class="btn-row">
+    <button class="btn-secondary" onclick="responderMotivo(null)">Cancelar</button>
+    <button class="btn-primary" onclick="confirmarMotivo()">Registrar e salvar</button>
+  </div>
+</div>
+</div>
+
+<!-- MODAL: enviar para o relatório -->
+<div class="modal-overlay" id="modalEnvio">
+<div class="modal lg">
+  <h3>Enviar datas para o relatório</h3>
+  <div id="envioConteudo"></div>
+  <div class="btn-row">
+    <button class="btn-secondary" onclick="fecharModal('modalEnvio')">Cancelar</button>
+    <button class="btn-primary" id="btnConfirmarEnvio" onclick="confirmarEnvio()">Enviar</button>
+  </div>
+</div>
+</div>
+
+<input type="file" id="excelInput" accept=".xlsx" style="display:none" onchange="importarExcel(this)">
+
+<script>
+/* ════════════════════════════════════════════════════════════════════
+   CRONOGRAMA DE OBRA
+   - As datas NUNCA são digitadas: saem de duração + dependências + calendário.
+   - Linha de base (congelada só pela Suzana) = prazo combinado com o cliente.
+   - Depois da linha de base, toda mudança exige motivo e vai para o histórico.
+   ════════════════════════════════════════════════════════════════════ */
+
+const SUPABASE_URL = 'https://lluyihtkgraxbpktewdu.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_BMlBLr96Q55bjbvZpHlKjA_1vXNu9ds';
+const SUZANA_EMAIL = 'suzanabonolo@suzanabonolo.com.br';
+const USUARIOS = {
+  'suzanabonolo@suzanabonolo.com.br': 'Suzana Bonolo',
+  'brunatadeuarquitetura@gmail.com': 'Bruna Tadeu',
+  'arqlaizleones@gmail.com': 'Laiz Leones'
+};
+const TIPOS = ['Civil','Marcenaria','Marmoraria','Vidraçaria','Churrasqueira','Decor','Extra'];
+const MOTIVOS = ['Pedido do cliente','Fornecedor / entrega','Mão de obra','Imprevisto na obra','Replanejamento interno','Outro'];
+
+/* Modelo sugerido. Durações e folgas são ESTIMATIVAS iniciais — ajuste à realidade de cada obra.
+   deps: [índice da etapa anterior, 'TI' (após o término) | 'II' (junto com o início), folga em dias úteis] */
+const MODELO = [
+  {tipo:'Civil',      item:'Demolição', dur:5, deps:[]},
+  {tipo:'Civil',      item:'Construção', dur:10, deps:[[0,'TI',0]]},
+  {tipo:'Civil',      item:'Hidráulica', dur:8, deps:[[1,'II',3]]},
+  {tipo:'Civil',      item:'Elétrica', dur:10, deps:[[1,'II',3]]},
+  {tipo:'Civil',      item:'Infra e condensadora ar condicionado', dur:5, deps:[[1,'II',3]]},
+  {tipo:'Civil',      item:'Impermeabilização de piso e paredes', dur:5, deps:[[2,'TI',0]]},
+  {tipo:'Civil',      item:'Revestimentos de piso', dur:10, deps:[[5,'TI',3],[3,'TI',0]]},
+  {tipo:'Civil',      item:'Revestimentos de parede', dur:10, deps:[[6,'II',2]]},
+  {tipo:'Civil',      item:'Forros', dur:8, deps:[[3,'TI',0],[4,'TI',0]]},
+  {tipo:'Marcenaria', item:'Medição marcenaria', dur:1, deps:[[7,'TI',0],[8,'TI',0]]},
+  {tipo:'Civil',      item:'Pintura', dur:10, deps:[[7,'TI',0],[8,'TI',0]]},
+  {tipo:'Marcenaria', item:'Instalação de marcenaria', dur:10, deps:[[9,'TI',25]]},
+  {tipo:'Marmoraria', item:'Medição marmoraria', dur:1, deps:[[11,'II',3]]},
+  {tipo:'Marmoraria', item:'Instalação de marmoraria', dur:5, deps:[[12,'TI',15]]},
+  {tipo:'Civil',      item:'Instalação de luminárias técnicas', dur:3, deps:[[10,'TI',0]]},
+  {tipo:'Civil',      item:'Instalação de louças e metais', dur:3, deps:[[13,'TI',0]]},
+  {tipo:'Vidraçaria', item:'Instalação de box', dur:2, deps:[[13,'TI',10]]},
+  {tipo:'Decor',      item:'Medição de persianas e cortinas', dur:1, deps:[[10,'II',0]]},
+  {tipo:'Decor',      item:'Instalação de persianas e cortinas', dur:2, deps:[[17,'TI',15],[10,'TI',0]]},
+  {tipo:'Decor',      item:'Limpeza pós obra', dur:3, deps:[[11,'TI',0],[14,'TI',0],[15,'TI',0],[16,'TI',0],[18,'TI',0]]}
+];
+
+let sb = null;
+try { sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY); } catch(e) {}
+
+/* PURE-START ─────────────── funções de data e cálculo (sem tela) ─────────────── */
+const pad = n => String(n).padStart(2,'0');
+function iso(d){ return d ? d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()) : null; }
+function deISO(s){ const m = String(s||'').match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? new Date(+m[1], +m[2]-1, +m[3], 12) : null; }
+function addDias(d,n){ const x = new Date(d.getTime()); x.setDate(x.getDate()+n); x.setHours(12,0,0,0); return x; }
+function hoje(){ const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), d.getDate(), 12); }
+function br(d){ return d ? pad(d.getDate())+'/'+pad(d.getMonth()+1)+'/'+String(d.getFullYear()).slice(2) : '—'; }
+function brCurto(d){ return d ? pad(d.getDate())+'/'+pad(d.getMonth()+1) : ''; }
+function diasCorridos(a,b){ return Math.round((b.getTime() - a.getTime())/864e5); }
+const chaveNome = s => String(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9 ]/g,' ').replace(/\s+/g,' ').trim();
+
+/* Páscoa (algoritmo de Meeus) — base para Carnaval, Sexta-feira Santa e Corpus Christi */
+function pascoa(y){
+  const a=y%19, b=Math.floor(y/100), c=y%100, d=Math.floor(b/4), e=b%4, f=Math.floor((b+8)/25),
+        g=Math.floor((b-f+1)/3), h=(19*a+b-d-g+15)%30, i=Math.floor(c/4), k=c%4,
+        l=(32+2*e+2*i-h-k)%7, m=Math.floor((a+11*h+22*l)/451),
+        mes=Math.floor((h+l-7*m+114)/31), dia=((h+l-7*m+114)%31)+1;
+  return new Date(y, mes-1, dia, 12);
+}
+function feriadosNacionais(y){
+  const p = pascoa(y);
+  return [
+    [new Date(y,0,1,12),'Confraternização Universal'],
+    [addDias(p,-48),'Carnaval (segunda)'],
+    [addDias(p,-47),'Carnaval (terça)'],
+    [addDias(p,-2),'Sexta-feira Santa'],
+    [new Date(y,3,21,12),'Tiradentes'],
+    [new Date(y,4,1,12),'Dia do Trabalho'],
+    [addDias(p,60),'Corpus Christi'],
+    [new Date(y,8,7,12),'Independência'],
+    [new Date(y,9,12,12),'N. Sra. Aparecida'],
+    [new Date(y,10,2,12),'Finados'],
+    [new Date(y,10,15,12),'Proclamação da República'],
+    [new Date(y,10,20,12),'Consciência Negra'],
+    [new Date(y,11,25,12),'Natal']
+  ].map(([d,n]) => ({ data: iso(d), nome: n }));
+}
+
+/* Calendário de dias úteis da obra: índice 0 = 1º dia útil a partir da data de início */
+let _cal = null;
+function montarCalendario(config){
+  _cal = {
+    inicio: deISO(config && config.data_inicio) || hoje(),
+    sabado: !!(config && config.sabado),
+    feriados: new Set(((config && config.feriados) || []).map(f => f.data)),
+    dias: []
+  };
+}
+function ehDiaUtil(d){
+  const w = d.getDay();
+  if(w === 0) return false;
+  if(w === 6 && !_cal.sabado) return false;
+  return !_cal.feriados.has(iso(d));
+}
+function _proximoDiaUtil(){
+  let d = _cal.dias.length ? addDias(_cal.dias[_cal.dias.length-1], 1) : new Date(_cal.inicio.getTime());
+  let g = 0;
+  while(!ehDiaUtil(d) && g++ < 400) d = addDias(d, 1);
+  _cal.dias.push(d);
+}
+function diaDoIdx(i){ i = Math.max(0, i|0); while(_cal.dias.length <= i) _proximoDiaUtil(); return _cal.dias[i]; }
+function idxDaData(d){ // índice do 1º dia útil >= d
+  if(!d) return 0;
+  if(d <= diaDoIdx(0)) return 0;
+  let g = 0;
+  while(_cal.dias[_cal.dias.length-1] < d && g++ < 20000) _proximoDiaUtil();
+  let lo = 0, hi = _cal.dias.length-1;
+  while(lo < hi){ const m = (lo+hi) >> 1; if(_cal.dias[m] < d) lo = m+1; else hi = m; }
+  return lo;
+}
+function uteisNoIntervalo(a,b){ // dias úteis de a até b, inclusive
+  if(!a || !b || b < a) return 0;
+  let n = 0, d = new Date(a.getTime()), g = 0;
+  while(d <= b && g++ < 5000){ if(ehDiaUtil(d)) n++; d = addDias(d,1); }
+  return n;
+}
+function difUteis(de, para){ // dias úteis de "de" até "para" (positivo = "para" é depois)
+  if(!de || !para) return null;
+  let s = 1, a = de, b = para;
+  if(b < a){ s = -1; a = para; b = de; }
+  let n = 0, d = addDias(a,1), g = 0;
+  while(d <= b && g++ < 5000){ if(ehDiaUtil(d)) n++; d = addDias(d,1); }
+  return s*n;
+}
+
+/* Método do caminho crítico (CPM): ida calcula o mais cedo; volta calcula a folga de cada etapa.
+   es = índice do início; ef = índice do dia seguinte ao término (exclusivo). */
+function calcularCronograma(lista){
+  const R = { t:{}, ciclos:new Set(), fim:null, fimIdx:0 };
+  const byId = {}; lista.forEach(t => byId[t.id] = t);
+  const est = {};
+  function ida(t){
+    if(est[t.id] === 'ok') return;
+    if(est[t.id] === 'vis'){ R.ciclos.add(t.id); return; }
+    est[t.id] = 'vis';
+    let s = 0;
+    if(t.inicio_fixo) s = Math.max(s, idxDaData(deISO(t.inicio_fixo)));
+    (t.deps || []).forEach(d => {
+      const p = byId[d.id]; if(!p || p.id === t.id) return;
+      ida(p);
+      const cp = R.t[p.id];
+      if(!cp){ R.ciclos.add(t.id); return; }
+      const f = parseInt(d.folga,10) || 0;
+      s = Math.max(s, (d.tipo === 'II' ? cp.es : cp.ef) + f);
+    });
+    s = Math.max(0, s);
+    const dur = Math.max(0, parseInt(t.duracao,10) || 0);
+    R.t[t.id] = { es:s, ef:s+dur, dur:dur };
+    est[t.id] = 'ok';
+  }
+  lista.forEach(ida);
+
+  R.fimIdx = lista.length ? Math.max.apply(null, lista.map(t => R.t[t.id].ef)) : 0;
+  const suc = {};
+  lista.forEach(t => (t.deps || []).forEach(d => { if(byId[d.id] && d.id !== t.id) (suc[d.id] = suc[d.id] || []).push({ q:t, d:d }); }));
+  const ls = {}, vis = {};
+  function volta(t){
+    if(ls[t.id] !== undefined) return ls[t.id];
+    const c = R.t[t.id];
+    if(vis[t.id]) return R.fimIdx - c.dur;
+    vis[t.id] = true;
+    let v = R.fimIdx - c.dur;
+    (suc[t.id] || []).forEach(({q,d}) => {
+      const f = parseInt(d.folga,10) || 0;
+      const lq = volta(q);
+      v = Math.min(v, d.tipo === 'II' ? lq - f : lq - f - c.dur);
+    });
+    ls[t.id] = v;
+    return v;
+  }
+  let fim = null;
+  lista.forEach(t => {
+    const c = R.t[t.id];
+    c.folgaTotal = volta(t) - c.es;
+    c.critica = c.folgaTotal <= 0;
+    c.ciclo = R.ciclos.has(t.id);
+    c.inicio = diaDoIdx(c.es);
+    c.fim = c.dur > 0 ? diaDoIdx(c.ef - 1) : c.inicio;
+    if(!fim || c.fim > fim) fim = c.fim;
+  });
+  R.fim = fim;
+  return R;
+}
+
+function situacao(c, pct, ref){
+  const p = pct || 0;
+  if(p >= 100) return 'concluida';
+  if(c.fim < ref) return 'atrasada';
+  if(c.inicio < ref && p === 0) return 'risco';
+  if(c.inicio <= ref) return 'andamento';
+  return 'futura';
+}
+
+/* Mesma regra de ordenação do relatório */
+/* Converte "DD/MM" ou "DD/MM/AA" em número comparável (AAAAMMDD). Retorna null se vazio/inválido.
+   Sem ano: usa o ano que deixa a data mais perto de hoje (obra que vira o ano não embaralha). */
+function parseDataBR(s) {
+  const m = String(s||'').trim().match(/^(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?/);
+  if(!m) return null;
+  const dia = parseInt(m[1],10), mes = parseInt(m[2],10);
+  if(!dia || !mes || mes<1 || mes>12 || dia<1 || dia>31) return null;
+  let ano;
+  if(m[3]) { ano = parseInt(m[3],10); if(ano < 100) ano += 2000; }
+  else {
+    const h = new Date(); let melhor = null;
+    [h.getFullYear()-1, h.getFullYear(), h.getFullYear()+1].forEach(y => {
+      const d = new Date(y, mes-1, dia);
+      if(melhor === null || Math.abs(d - h) < Math.abs(melhor - h)) melhor = d;
+    });
+    ano = melhor.getFullYear();
+  }
+  return ano*10000 + mes*100 + dia;
+}
+function compararEtapasPorData(a, b){
+  const ia = parseDataBR(a.inicio), ib = parseDataBR(b.inicio);
+  if(ia !== null && ib !== null && ia !== ib) return ia - ib;
+  if(ia === null && ib !== null) return 1;
+  if(ia !== null && ib === null) return -1;
+  const fa = parseDataBR(a.fim), fb = parseDataBR(b.fim);
+  if(fa !== null && fb !== null && fa !== fb) return fa - fb;
+  if(fa === null && fb !== null) return 1;
+  if(fa !== null && fb === null) return -1;
+  return 0;
+}
+function ordenarEtapasRelatorio(lista){
+  return lista.map((item,o) => ({item,o}))
+    .sort((a,b) => { const c = compararEtapasPorData(a.item,b.item); return c !== 0 ? c : a.o - b.o; })
+    .map(x => x.item);
+}
+/* PURE-END ───────────────────────────────────────────────────────────────────── */
+
+/* ── ESTADO ─────────────────────────────────────────────────────── */
+let usuarioEmail = '', usuarioNome = '';
+let obras = [];
+let obra = null;        // linha da tabela obras
+let config = null;      // cronograma_config
+let tarefas = [];       // cronograma_tarefas
+let baseline = null;    // última linha de base
+let rasc = null;        // rascunho atual do relatório (para ler os %)
+let logRows = [];
+let calc = { t:{}, ciclos:new Set(), fim:null };
+let aba = 'lista';
+let _edit = null;
+let _motivoResolver = null;
+let _envio = null;
+let _carregando = false;
+
+const esc = s => String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+const ehSuzana = () => usuarioEmail === SUZANA_EMAIL;
+function novoId(){
+  if(window.crypto && crypto.randomUUID) return crypto.randomUUID();
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => { const r = Math.random()*16|0; return (c === 'x' ? r : (r&0x3|0x8)).toString(16); });
+}
+function mostrar(id){ document.querySelectorAll('.page').forEach(p => p.classList.toggle('active', p.id === id)); window.scrollTo(0,0); }
+function fecharModal(id){ document.getElementById(id).classList.remove('open'); }
+function algumModalAberto(){ return !!document.querySelector('.modal-overlay.open'); }
+function ordenadas(){ return tarefas.slice().sort((a,b) => (a.ordem - b.ordem) || String(a.created_at||'').localeCompare(String(b.created_at||''))); }
+function numeros(){ const m = {}; ordenadas().forEach((t,i) => m[t.id] = i+1); return m; }
+function maxOrdem(){ return tarefas.reduce((m,t) => Math.max(m, t.ordem||0), 0); }
+function tabelaFaltando(err){ const s = (err && (err.message||'') + ' ' + (err.code||'')) || ''; return /cronograma_|42P01|PGRST205|does not exist|Could not find the table/i.test(s); }
+
+/* ── LOGIN ──────────────────────────────────────────────────────── */
+async function fazerLogin(){
+  const email = document.getElementById('loginEmail').value.trim().toLowerCase();
+  const senha = document.getElementById('loginSenha').value;
+  const erro = document.getElementById('loginErro');
+  const falhar = m => { erro.textContent = m; erro.style.display = 'block'; };
+  if(!email || !senha) return falhar('Preencha e-mail e senha.');
+  const btn = document.getElementById('btnLogin');
+  btn.disabled = true; btn.textContent = 'Entrando...';
+  try {
+    const { data, error } = await sb.auth.signInWithPassword({ email, password: senha });
+    if(error) falhar(/Invalid login/i.test(error.message) ? 'E-mail ou senha incorretos.' : 'Erro ao entrar: ' + error.message);
+    else await entrar(data.session);
+  } catch(e) { falhar('Sem conexão. Verifique a internet.'); }
+  btn.disabled = false; btn.textContent = 'Entrar';
+}
+async function entrar(session){
+  usuarioEmail = (session.user.email || '').toLowerCase();
+  usuarioNome = USUARIOS[usuarioEmail] || usuarioEmail;
+  document.getElementById('userName').textContent = usuarioNome;
+  document.getElementById('userArea').style.display = 'block';
+  mostrar('pageSel');
+  document.getElementById('selGrid').innerHTML = '<div class="loading"><div class="spinner"></div> Carregando obras...</div>';
+  const { data, error } = await sb.from('obras').select('*').eq('arquivada', false).order('created_at');
+  if(error){ document.getElementById('selGrid').innerHTML = '<div class="erro-box">Não consegui carregar as obras: '+esc(error.message)+'</div>'; return; }
+  obras = data || [];
+  const key = new URLSearchParams(location.search).get('obra');
+  if(key && obras.find(o => o.key === key)) abrirObra(key);
+  else renderSeletor();
+}
+async function sair(){ try { await sb.auth.signOut(); } catch(e) {} location.href = 'cronograma.html'; }
+
+/* ── SELETOR ────────────────────────────────────────────────────── */
+function renderSeletor(){
+  obra = null;
+  document.getElementById('btnObras').style.display = 'none';
+  history.replaceState(null, '', 'cronograma.html');
+  mostrar('pageSel');
+  const grid = document.getElementById('selGrid');
+  grid.innerHTML = obras.length ? '' : '<div class="alert-box">Nenhuma obra ativa. Crie a obra primeiro no relatório.</div>';
+  obras.forEach(o => {
+    const c = document.createElement('div');
+    c.className = 'sel-card';
+    c.innerHTML = '<div class="sel-card-name">'+esc(o.label)+'</div><div class="sel-card-client">'+esc(o.cliente || 'Cliente a definir')+'</div>';
+    c.onclick = () => abrirObra(o.key);
+    grid.appendChild(c);
+  });
+}
+function voltarSeletor(){ renderSeletor(); }
+
+/* ── CARREGAR OBRA ──────────────────────────────────────────────── */
+async function abrirObra(key){
+  obra = obras.find(o => o.key === key);
+  if(!obra) return renderSeletor();
+  history.replaceState(null, '', 'cronograma.html?obra=' + encodeURIComponent(key));
+  document.getElementById('btnObras').style.display = 'inline-block';
+  mostrar('pageObra');
+  document.getElementById('obraConteudo').innerHTML = '<div class="loading"><div class="spinner"></div> Carregando cronograma...</div>';
+  const ok = await carregarDados();
+  if(ok) renderObra();
+}
+
+async function carregarDados(){
+  if(!obra) return false;
+  _carregando = true;
+  try {
+    const id = obra.id;
+    const [cfg, trf, bl, rs, lg] = await Promise.all([
+      sb.from('cronograma_config').select('*').eq('obra_id', id).maybeSingle(),
+      sb.from('cronograma_tarefas').select('*').eq('obra_id', id).order('ordem'),
+      sb.from('cronograma_baselines').select('*').eq('obra_id', id).order('versao', { ascending:false }).limit(1),
+      sb.from('relatorios').select('id,dados,updated_at,updated_by').eq('obra_id', id).eq('status','rascunho').order('updated_at', { ascending:false }).limit(1),
+      sb.from('cronograma_log').select('*').eq('obra_id', id).order('criado_em', { ascending:false }).limit(200)
+    ]);
+    const comErro = [cfg, trf, bl, lg].find(r => r.error);
+    if(comErro){
+      const el = document.getElementById('obraConteudo');
+      el.innerHTML = tabelaFaltando(comErro.error)
+        ? '<div class="alert-box"><strong>Falta criar as tabelas do cronograma no Supabase.</strong><br>Abra o Supabase → SQL Editor → cole o conteúdo do arquivo <em>cronograma_supabase.sql</em> → Run. Depois recarregue esta página.</div>'
+        : '<div class="erro-box">Erro ao carregar: '+esc(comErro.error.message)+'</div>';
+      return false;
+    }
+    config = cfg.data || { obra_id:id, data_inicio:null, sabado:false, feriados:[] };
+    tarefas = trf.data || [];
+    baseline = (bl.data || [])[0] || null;
+    rasc = rs.error ? null : ((rs.data || [])[0] || null);
+    logRows = lg.data || [];
+    recalcular();
+    return true;
+  } catch(e) {
+    document.getElementById('obraConteudo').innerHTML = '<div class="erro-box">Sem conexão: '+esc(e.message)+'</div>';
+    return false;
+  } finally { _carregando = false; }
+}
+
+function recalcular(){ montarCalendario(config); calc = calcularCronograma(tarefas); }
+
+function mapaPct(){
+  const m = {};
+  const lista = (rasc && rasc.dados && Array.isArray(rasc.dados.etapas)) ? rasc.dados.etapas : [];
+  lista.forEach(e => { if(e && e.item) m[chaveNome(e.item)] = { pct: e.pct || 0, na: e.status === 'na' }; });
+  return m;
+}
+
+/* ── RENDER ─────────────────────────────────────────────────────── */
+function renderObra(){
+  const el = document.getElementById('obraConteudo');
+  const semInicio = !config.data_inicio;
+  let h = '';
+  h += '<div class="sec-title">'+esc(obra.label)+'</div>';
+  h += '<div class="sec-sub">'+esc(obra.cliente || '')+(obra.cidade ? ' · '+esc(obra.cidade) : '')+'</div>';
+  h += '<div class="print-only" style="font-size:12px;color:var(--brown-mid);margin-bottom:10px;">Cronograma gerado em '+br(hoje())+'</div>';
+  if(calc.ciclos.size) h += '<div class="erro-box">⚠ Há dependências em círculo (uma etapa depende de outra que depende dela). As etapas marcadas com ⚠ estão com a data errada até isso ser corrigido.</div>';
+  h += htmlResumo();
+  h += htmlConfig(semInicio);
+  if(!tarefas.length) h += htmlVazio(semInicio);
+  else {
+    h += '<div class="toolbar no-print">' +
+      '<button class="btn-primary" onclick="abrirEditor(null)">+ Nova etapa</button>' +
+      '<button class="btn-dark" onclick="prepararEnvio()">📤 Enviar datas ao relatório</button>' +
+      '<button class="btn-secondary" onclick="imprimir()">🖨 Imprimir / PDF</button>' +
+      '<button class="btn-secondary" onclick="ordenarPorData()">🔃 Ordenar por data</button>' +
+      '<button class="btn-secondary" onclick="recarregar()">↻ Atualizar</button>' +
+    '</div>';
+    h += '<div class="tabs no-print"><div class="tab'+(aba==='lista'?' active':'')+'" onclick="trocarAba(\'lista\')">Lista</div><div class="tab'+(aba==='gantt'?' active':'')+'" onclick="trocarAba(\'gantt\')">Gantt</div><div class="tab'+(aba==='historico'?' active':'')+'" onclick="trocarAba(\'historico\')">Histórico ('+logRows.length+')</div></div>';
+    if(aba === 'lista') h += htmlLista();
+    else if(aba === 'gantt') h += htmlGantt();
+    else h += htmlHistorico();
+  }
+  el.innerHTML = h;
+}
+function trocarAba(a){ aba = a; renderObra(); }
+
+function htmlResumo(){
+  if(!tarefas.length) return '';
+  const pm = mapaPct(), ref = hoje();
+  let atrasadas = 0, criticas = 0;
+  tarefas.forEach(t => {
+    const c = calc.t[t.id]; if(!c) return;
+    const p = pm[chaveNome(t.item)];
+    if(situacao(c, p ? p.pct : 0, ref) === 'atrasada') atrasadas++;
+    if(c.critica) criticas++;
+  });
+  let h = '<div class="kpis">';
+  h += kpi('Início da obra', br(deISO(config.data_inicio)), config.sabado ? 'trabalha sábado' : 'seg a sex');
+  h += kpi('Término calculado', br(calc.fim), tarefas.length+' etapas');
+  if(baseline){
+    const bFim = deISO(baseline.snapshot && baseline.snapshot.termino);
+    const d = difUteis(bFim, calc.fim);
+    h += kpi('Prazo combinado (base v'+baseline.versao+')', br(bFim), 'congelada em '+br(new Date(baseline.criado_em))+' · '+esc(baseline.criado_por||''));
+    h += kpi('Desvio no término', d == null ? '—' : (d > 0 ? '<span class="d-atraso">+'+d+' dias úteis</span>' : d < 0 ? '<span class="d-adiant">'+d+' dias úteis</span>' : '<span class="d-ok">no prazo</span>'), d > 0 ? 'atraso sobre o combinado' : '');
+  } else {
+    h += kpi('Prazo combinado', '—', 'linha de base ainda não congelada');
+  }
+  h += kpi('Etapas atrasadas', atrasadas ? '<span class="d-atraso">'+atrasadas+'</span>' : '0', 'pelo % do último relatório');
+  h += kpi('Caminho crítico', criticas+' etapas', 'se atrasarem, atrasam a obra');
+  h += '</div>';
+  if(ehSuzana()){
+    h += '<div class="toolbar no-print">' + (baseline
+      ? '<button class="btn-secondary" onclick="congelarBase()">🔒 Nova linha de base (v'+(baseline.versao+1)+')</button>'
+      : '<button class="btn-dark" onclick="congelarBase()">🔒 Congelar linha de base</button>') + '</div>';
+  } else if(!baseline) {
+    h += '<div class="hint no-print" style="margin:0 0 14px;">A linha de base (prazo combinado com o cliente) é congelada pela Suzana.</div>';
+  }
+  if(baseline) h += '<div class="info-box no-print">🔒 Linha de base congelada: qualquer mudança de duração, dependência, data ou calendário agora pede um motivo e fica registrada no histórico.</div>';
+  return h;
+}
+function kpi(l, v, s){ return '<div class="kpi"><div class="kpi-l">'+l+'</div><div class="kpi-v">'+v+'</div>'+(s?'<div class="kpi-s">'+s+'</div>':'')+'</div>'; }
+
+function htmlConfig(semInicio){
+  const fer = (config.feriados || []).slice().sort((a,b) => a.data.localeCompare(b.data));
+  let h = '<div class="card no-print"><div class="card-label">Calendário da obra</div>';
+  if(semInicio) h += '<div class="alert-box">Comece pela data de início da obra: todas as outras datas são calculadas a partir dela.</div>';
+  h += '<div class="row-2">' +
+    '<div><label>Data de início da obra</label><input type="date" value="'+(config.data_inicio||'')+'" onchange="mudarInicio(this.value)"></div>' +
+    '<div><label>&nbsp;</label><label class="check"><input type="checkbox" '+(config.sabado?'checked':'')+' onchange="mudarSabado(this.checked)"> Obra trabalha aos sábados</label></div>' +
+  '</div>';
+  h += '<label>Feriados e dias sem obra ('+fer.length+')</label>';
+  h += '<div class="chips">' + (fer.length ? fer.map(f => '<span class="chip">'+br(deISO(f.data))+' · '+esc(f.nome||'')+'<button title="Remover" onclick="removerFeriado(\''+f.data+'\')">×</button></span>').join('') : '<span class="hint" style="margin:0;">Nenhum. Sem feriados, o cálculo conta esses dias como úteis.</span>') + '</div>';
+  h += '<div class="row-3">' +
+    '<div><input type="date" id="novoFerData"></div>' +
+    '<div><input type="text" id="novoFerNome" placeholder="Ex: Condomínio proíbe obra"></div>' +
+    '<div><button class="btn-secondary" style="width:100%;" onclick="addFeriado()">+ Adicionar dia</button></div>' +
+  '</div>';
+  h += '<button class="btn-add" style="margin-top:0;" onclick="addFeriadosNacionais()">+ Adicionar feriados nacionais (inclui Carnaval e Corpus Christi — remova os que a obra trabalhar)</button>';
+  h += '</div>';
+  return h;
+}
+
+function htmlVazio(semInicio){
+  return '<div class="card no-print"><div class="card-label">Como começar</div>' +
+    '<div class="sec-sub" style="margin-bottom:14px;">Escolha um ponto de partida. Depois você ajusta durações e dependências etapa por etapa.</div>' +
+    '<div class="toolbar">' +
+      '<button class="btn-primary" '+(semInicio?'disabled title="Preencha a data de início"':'')+' onclick="criarDoModelo()">Usar modelo sugerido (já amarrado)</button>' +
+      '<button class="btn-secondary" onclick="importarDoRelatorio()">Trazer etapas do relatório</button>' +
+      '<button class="btn-secondary" onclick="document.getElementById(\'excelInput\').click()">Importar macrocronograma (Excel)</button>' +
+      '<button class="btn-secondary" onclick="abrirEditor(null)">Começar do zero</button>' +
+    '</div>' +
+    '<div class="hint" style="margin:6px 0 0;">O modelo sugerido vem com as dependências típicas de uma reforma de interiores. As durações são estimativas iniciais minhas, não um padrão de mercado: revise antes de congelar a linha de base. Relatório e Excel trazem as datas atuais "travadas" (📌); amarre as dependências e tire o 📌 para as datas passarem a ser calculadas.</div>' +
+  '</div>';
+}
+
+function depsTexto(t, nums){
+  const partes = (t.deps || []).map(d => {
+    const n = nums[d.id]; if(!n) return '';
+    const f = parseInt(d.folga,10) || 0;
+    return (d.tipo === 'II' ? 'junto c/ #' : 'após #') + n + (f ? (f > 0 ? ' +' : ' ') + f + 'd' : '');
+  }).filter(Boolean);
+  return partes.length ? partes.join(', ') : '—';
+}
+function desvioHtml(d){
+  if(d == null) return '<span class="d-ok">—</span>';
+  if(d > 0) return '<span class="d-atraso">+'+d+'d</span>';
+  if(d < 0) return '<span class="d-adiant">'+d+'d</span>';
+  return '<span class="d-ok">0</span>';
+}
+const SIT = { atrasada:'Atrasada', risco:'Não começou', andamento:'Em andamento', concluida:'Concluída', futura:'Futura' };
+
+function htmlLista(){
+  const nums = numeros(), pm = mapaPct(), ref = hoje();
+  let h = '<div class="tbl-wrap"><table class="tbl"><thead><tr>' +
+    '<th>#</th><th>Etapa</th><th>Duração</th><th>Depende de</th><th>Início</th><th>Término</th><th>Término base</th><th>Desvio</th><th>% relatório</th><th>Situação</th>' +
+    '</tr></thead><tbody>';
+  ordenadas().forEach(t => {
+    const c = calc.t[t.id]; if(!c) return;
+    const p = pm[chaveNome(t.item)];
+    const s = situacao(c, p ? p.pct : 0, ref);
+    const b = baseline && baseline.snapshot && baseline.snapshot.tarefas ? baseline.snapshot.tarefas[t.id] : null;
+    const desv = b ? difUteis(deISO(b.fim), c.fim) : null;
+    h += '<tr class="'+(c.critica?'critica':'')+'" onclick="abrirEditor(\''+t.id+'\')">' +
+      '<td class="num">'+nums[t.id]+'</td>' +
+      '<td><div class="t-nome">'+esc(t.item)+(t.inicio_fixo?' <span title="Não começa antes de '+br(deISO(t.inicio_fixo))+'">📌</span>':'')+(c.ciclo?' <span class="crit" title="Dependência circular">⚠</span>':'')+'</div>' +
+        '<div class="t-tipo">'+esc(t.tipo||'')+(c.critica?' · <span class="crit">caminho crítico</span>':' · folga '+c.folgaTotal+'d')+'</div></td>' +
+      '<td>'+(c.dur === 0 ? 'marco' : c.dur+' d')+'</td>' +
+      '<td class="deps">'+depsTexto(t, nums)+'</td>' +
+      '<td>'+br(c.inicio)+'</td>' +
+      '<td>'+br(c.fim)+'</td>' +
+      '<td>'+(b ? br(deISO(b.fim)) : (baseline ? '<span class="hint" style="margin:0;">nova</span>' : '—'))+'</td>' +
+      '<td>'+desvioHtml(desv)+'</td>' +
+      '<td>'+(p ? (p.na ? 'n/a' : p.pct+'%') : '—')+'</td>' +
+      '<td><span class="badge s-'+s+'">'+SIT[s]+'</span></td>' +
+    '</tr>';
+  });
+  h += '</tbody></table></div>';
+  h += '<div class="hint" style="margin:10px 0 0;">Clique numa etapa para editar. Faixa vermelha à esquerda = caminho crítico. "Folga" = quantos dias úteis a etapa pode atrasar sem mudar o término da obra. O % vem do rascunho atual do relatório.</div>';
+  return h;
+}
+
+function htmlGantt(){
+  const lista = ordenadas().filter(t => calc.t[t.id]);
+  if(!lista.length) return '';
+  const nums = numeros(), pm = mapaPct(), ref = hoje();
+  const snap = baseline && baseline.snapshot && baseline.snapshot.tarefas ? baseline.snapshot.tarefas : {};
+  let min = null, max = null;
+  const considerar = d => { if(!d) return; if(!min || d < min) min = d; if(!max || d > max) max = d; };
+  lista.forEach(t => { const c = calc.t[t.id]; considerar(c.inicio); considerar(c.fim); const b = snap[t.id]; if(b){ considerar(deISO(b.inicio)); considerar(deISO(b.fim)); } });
+  const ini = addDias(min, -((min.getDay()+6)%7));  // segunda-feira
+  const fimG = addDias(max, 7);
+  const PX = 6;
+  const larg = (diasCorridos(ini, fimG)+1) * PX;
+  const pos = d => diasCorridos(ini, d) * PX;
+
+  let h = '<div class="g-legend">' +
+    '<span><i style="background:var(--salmon)"></i>Etapa</span>' +
+    '<span><i style="background:var(--red-alert)"></i>Caminho crítico</span>' +
+    '<span><i style="background:var(--green-ok)"></i>Concluída</span>' +
+    '<span><i style="background:var(--brown-light);height:4px;"></i>Linha de base</span>' +
+    '<span><i style="background:var(--amber);width:2px;"></i>Hoje</span>' +
+  '</div>';
+  h += '<div class="gantt-wrap"><div style="width:'+(larg+220)+'px;">';
+  h += '<div class="g-row g-head"><div class="g-label">Etapa</div><div class="g-track" style="width:'+larg+'px;">';
+  for(let d = new Date(ini.getTime()); d <= fimG; d = addDias(d,7)) h += '<div class="g-week" style="left:'+pos(d)+'px;">'+brCurto(d)+'</div>';
+  h += '</div></div>';
+  const hojeHtml = (ref >= ini && ref <= fimG) ? '<div class="g-hoje" style="left:'+pos(ref)+'px;"></div>' : '';
+  lista.forEach(t => {
+    const c = calc.t[t.id];
+    const p = pm[chaveNome(t.item)];
+    const pct = p && !p.na ? Math.min(100, p.pct) : 0;
+    const b = snap[t.id];
+    let barra;
+    if(c.dur === 0) barra = '<div class="g-marco" style="left:'+(pos(c.inicio)-3)+'px;" title="'+esc(t.item)+' · '+br(c.inicio)+'"></div>';
+    else barra = '<div class="g-bar'+(pct >= 100 ? ' done' : c.critica ? ' crit' : '')+'" style="left:'+pos(c.inicio)+'px;width:'+Math.max(PX,(diasCorridos(c.inicio,c.fim)+1)*PX)+'px;" title="'+esc(t.item)+' · '+br(c.inicio)+' a '+br(c.fim)+(pct?' · '+pct+'%':'')+'">'+(pct > 0 && pct < 100 ? '<div class="pct" style="width:'+pct+'%;"></div>' : '')+'</div>';
+    const base = b ? '<div class="g-base" style="left:'+pos(deISO(b.inicio))+'px;width:'+Math.max(PX,(diasCorridos(deISO(b.inicio),deISO(b.fim))+1)*PX)+'px;"></div>' : '';
+    h += '<div class="g-row"><div class="g-label" title="'+esc(t.item)+'"><span class="n">'+nums[t.id]+'</span>'+esc(t.item)+'</div>' +
+      '<div class="g-track" style="width:'+larg+'px;">'+hojeHtml+base+barra+'</div></div>';
+  });
+  h += '</div></div>';
+  return h;
+}
+
+const ACOES = { criou:'Criou etapa', alterou:'Alterou etapa', removeu:'Removeu etapa', config:'Alterou calendário', linha_de_base:'Congelou linha de base', importou:'Importou etapas', enviou_relatorio:'Enviou datas ao relatório' };
+function htmlHistorico(){
+  if(!logRows.length) return '<div class="card"><div class="hint" style="margin:0;">Nenhuma alteração registrada ainda.</div></div>';
+  let h = '<div class="card">';
+  logRows.forEach(r => {
+    h += '<div class="log-item"><div class="log-meta">'+new Date(r.criado_em).toLocaleString('pt-BR')+' · '+esc(r.autor||'')+'</div>' +
+      '<div><strong>'+(ACOES[r.acao]||esc(r.acao))+'</strong>'+(r.tarefa_nome ? ' — '+esc(r.tarefa_nome) : '')+'</div>' +
+      '<div style="color:var(--brown-mid);margin-top:2px;">'+detalheLog(r)+'</div>' +
+      (r.motivo || r.motivo_categoria ? '<div class="log-motivo"><strong>Motivo:</strong> '+esc(r.motivo_categoria||'')+(r.motivo ? ' — '+esc(r.motivo) : '')+'</div>' : '') +
+    '</div>';
+  });
+  return h + '</div>';
+}
+function nomeTarefa(id){ const t = tarefas.find(x => x.id === id); return t ? t.item : '(etapa removida)'; }
+function depsNomes(deps){
+  return (deps || []).map(d => (d.tipo === 'II' ? 'junto c/ ' : 'após ') + nomeTarefa(d.id) + ((parseInt(d.folga,10)||0) ? ' ('+(d.folga>0?'+':'')+d.folga+'d)' : '')).join('; ') || 'nenhuma';
+}
+function detalheLog(r){
+  const a = r.antes || {}, d = r.depois || {};
+  const partes = [];
+  if(r.acao === 'alterou'){
+    if(a.item !== d.item) partes.push('Nome: '+esc(a.item)+' → '+esc(d.item));
+    if(a.duracao !== d.duracao) partes.push('Duração: '+a.duracao+' → '+d.duracao+' dias úteis');
+    if(JSON.stringify(a.deps||[]) !== JSON.stringify(d.deps||[])) partes.push('Dependências: '+esc(depsNomes(a.deps))+' → '+esc(depsNomes(d.deps)));
+    if((a.inicio_fixo||null) !== (d.inicio_fixo||null)) partes.push('Não antes de: '+br(deISO(a.inicio_fixo))+' → '+br(deISO(d.inicio_fixo)));
+    if(a.tipo !== d.tipo) partes.push('Categoria: '+esc(a.tipo)+' → '+esc(d.tipo));
+  } else if(r.acao === 'config'){
+    if(a.data_inicio !== d.data_inicio) partes.push('Início da obra: '+br(deISO(a.data_inicio))+' → '+br(deISO(d.data_inicio)));
+    if(a.sabado !== d.sabado) partes.push('Sábado: '+(d.sabado ? 'passa a trabalhar' : 'deixa de trabalhar'));
+    if(JSON.stringify(a.feriados||[]) !== JSON.stringify(d.feriados||[])) partes.push('Feriados: '+(a.feriados||[]).length+' → '+(d.feriados||[]).length);
+  } else if(r.acao === 'criou'){
+    partes.push((d.duracao||0)+' dias úteis; depende de: '+esc(depsNomes(d.deps)));
+  } else if(r.acao === 'linha_de_base'){
+    partes.push('Versão '+d.versao+' · término combinado '+br(deISO(d.termino)));
+  } else if(r.acao === 'importou'){
+    partes.push((d.quantidade||0)+' etapas · origem: '+esc(d.origem||''));
+  } else if(r.acao === 'enviou_relatorio'){
+    partes.push((d.alteradas||0)+' datas atualizadas, '+(d.novas||0)+' etapas novas no relatório');
+  }
+  if(a.termino && d.termino && a.termino !== d.termino) partes.push('<strong>Término da obra: '+br(deISO(a.termino))+' → '+br(deISO(d.termino))+'</strong>');
+  return partes.join('<br>') || '—';
+}
+
+/* ── HISTÓRICO / MOTIVO ─────────────────────────────────────────── */
+async function registrarLog(acao, tarefa, antes, depois, motivo){
+  const linha = {
+    obra_id: obra.id, tarefa_id: tarefa ? tarefa.id : null, tarefa_nome: tarefa ? tarefa.item : null,
+    acao, antes: antes || null, depois: depois || null,
+    motivo_categoria: motivo ? motivo.cat : null, motivo: motivo ? motivo.texto : null, autor: usuarioNome
+  };
+  const { data, error } = await sb.from('cronograma_log').insert(linha).select().single();
+  if(error){ alert('A alteração foi salva, mas não consegui registrar no histórico: '+error.message); return; }
+  logRows.unshift(data);
+}
+
+function pedirMotivo(texto){
+  return new Promise(resolve => {
+    _motivoResolver = resolve;
+    document.getElementById('motivoTexto').textContent = texto;
+    document.getElementById('motivoCat').innerHTML = '<option value="">Selecione…</option>' + MOTIVOS.map(m => '<option>'+m+'</option>').join('');
+    document.getElementById('motivoDet').value = '';
+    document.getElementById('motivoErro').style.display = 'none';
+    document.getElementById('modalMotivo').classList.add('open');
+  });
+}
+function confirmarMotivo(){
+  const cat = document.getElementById('motivoCat').value;
+  const texto = document.getElementById('motivoDet').value.trim();
+  const erro = document.getElementById('motivoErro');
+  if(!cat || texto.length < 5){ erro.textContent = 'Escolha o motivo e descreva em uma frase o que aconteceu. É isso que sustenta a conversa com o cliente depois.'; erro.style.display = 'block'; return; }
+  responderMotivo({ cat, texto });
+}
+function responderMotivo(v){
+  document.getElementById('modalMotivo').classList.remove('open');
+  const r = _motivoResolver; _motivoResolver = null;
+  if(r) r(v);
+}
+const TXT_MOTIVO = 'A linha de base já está congelada. Toda mudança que mexe em datas fica registrada com autor, data e motivo.';
+
+/* ── CALENDÁRIO ─────────────────────────────────────────────────── */
+async function salvarConfig(patch, comMotivo){
+  const antes = { data_inicio: config.data_inicio, sabado: config.sabado, feriados: config.feriados || [] };
+  let motivo = null;
+  if(comMotivo && baseline){
+    motivo = await pedirMotivo(TXT_MOTIVO);
+    if(!motivo){ renderObra(); return false; }
+  }
+  const fimAntes = calc.fim;
+  const novo = Object.assign({}, config, patch, { obra_id: obra.id, updated_at: new Date().toISOString(), updated_by: usuarioNome });
+  const { error } = await sb.from('cronograma_config').upsert(novo, { onConflict: 'obra_id' });
+  if(error){ alert('Não consegui salvar: '+error.message); renderObra(); return false; }
+  config = novo;
+  recalcular();
+  if(comMotivo){
+    await registrarLog('config', null,
+      Object.assign(antes, { termino: iso(fimAntes) }),
+      { data_inicio: novo.data_inicio, sabado: novo.sabado, feriados: novo.feriados || [], termino: iso(calc.fim) }, motivo);
+  }
+  renderObra();
+  return true;
+}
+function mudarInicio(v){ salvarConfig({ data_inicio: v || null }, tarefas.length > 0); }
+function mudarSabado(v){ salvarConfig({ sabado: !!v }, tarefas.length > 0); }
+function addFeriado(){
+  const data = document.getElementById('novoFerData').value;
+  const nome = document.getElementById('novoFerNome').value.trim() || 'Sem obra';
+  if(!data) return alert('Escolha a data.');
+  const lista = (config.feriados || []).filter(f => f.data !== data);
+  lista.push({ data, nome });
+  salvarConfig({ feriados: lista }, tarefas.length > 0);
+}
+function removerFeriado(data){ salvarConfig({ feriados: (config.feriados || []).filter(f => f.data !== data) }, tarefas.length > 0); }
+function addFeriadosNacionais(){
+  const ini = deISO(config.data_inicio) || hoje();
+  const fim = calc.fim && calc.fim > ini ? calc.fim : addDias(ini, 365);
+  const anos = []; for(let y = ini.getFullYear(); y <= fim.getFullYear(); y++) anos.push(y);
+  const existentes = new Set((config.feriados || []).map(f => f.data));
+  const novos = [];
+  anos.forEach(y => feriadosNacionais(y).forEach(f => { if(!existentes.has(f.data)) novos.push(f); }));
+  if(!novos.length) return alert('Os feriados nacionais de '+anos.join(', ')+' já estão na lista.');
+  salvarConfig({ feriados: (config.feriados || []).concat(novos) }, tarefas.length > 0);
+}
+
+/* ── EDITOR DE ETAPA ────────────────────────────────────────────── */
+function descendentes(id){ // etapas que dependem (direta ou indiretamente) de id — não podem virar predecessoras dela
+  const suc = {};
+  tarefas.forEach(t => (t.deps || []).forEach(d => (suc[d.id] = suc[d.id] || []).push(t.id)));
+  const out = new Set(), fila = [id];
+  while(fila.length){ const x = fila.shift(); (suc[x] || []).forEach(y => { if(!out.has(y)){ out.add(y); fila.push(y); } }); }
+  return out;
+}
+function abrirEditor(id){
+  const t = id ? tarefas.find(x => x.id === id) : null;
+  if(id && !t) return;
+  _edit = { id: id, deps: t ? JSON.parse(JSON.stringify(t.deps || [])) : [] };
+  document.getElementById('edTitulo').textContent = t ? 'Editar etapa #'+numeros()[id] : 'Nova etapa';
+  document.getElementById('edItem').value = t ? t.item : '';
+  const tipo = t ? (t.tipo || 'Civil') : 'Civil';
+  const tipos = TIPOS.includes(tipo) ? TIPOS : TIPOS.concat([tipo]);
+  document.getElementById('edTipo').innerHTML = tipos.map(x => '<option'+(x===tipo?' selected':'')+'>'+esc(x)+'</option>').join('');
+  document.getElementById('edDur').value = t ? t.duracao : 5;
+  document.getElementById('edFixo').value = t && t.inicio_fixo ? t.inicio_fixo : '';
+  document.getElementById('edExcluir').style.display = t ? 'inline-block' : 'none';
+  const c = t ? calc.t[t.id] : null;
+  document.getElementById('edCalc').innerHTML = c
+    ? '<div class="info-box">Hoje calculado: <strong>'+br(c.inicio)+' a '+br(c.fim)+'</strong> · '+(c.critica ? '<span class="crit">no caminho crítico</span>' : 'folga de '+c.folgaTotal+' dias úteis')+'</div>'
+    : '';
+  renderEdDeps();
+  document.getElementById('modalEditor').classList.add('open');
+  if(!t) setTimeout(() => document.getElementById('edItem').focus(), 50);
+}
+function renderEdDeps(){
+  const bloqueadas = _edit.id ? descendentes(_edit.id) : new Set();
+  const nums = numeros();
+  const opcoes = ordenadas().filter(t => t.id !== _edit.id && !bloqueadas.has(t.id));
+  document.getElementById('edDeps').innerHTML = _edit.deps.map((d,i) =>
+    '<div class="dep-row">' +
+      '<select onchange="_edit.deps['+i+'].id=this.value"><option value="">Escolha a etapa…</option>' +
+        opcoes.map(t => '<option value="'+t.id+'"'+(t.id===d.id?' selected':'')+'>#'+nums[t.id]+' '+esc(t.item)+'</option>').join('') + '</select>' +
+      '<select onchange="_edit.deps['+i+'].tipo=this.value"><option value="TI"'+(d.tipo!=='II'?' selected':'')+'>Após o término</option><option value="II"'+(d.tipo==='II'?' selected':'')+'>Junto com o início</option></select>' +
+      '<input type="number" step="1" value="'+(parseInt(d.folga,10)||0)+'" title="Folga em dias úteis" onchange="_edit.deps['+i+'].folga=parseInt(this.value,10)||0">' +
+      '<button title="Remover" onclick="_edit.deps.splice('+i+',1);renderEdDeps()">×</button>' +
+    '</div>'
+  ).join('') || '<div class="hint" style="margin:0;">Sem dependências: começa na data de início da obra (ou no "não começar antes de").</div>';
+}
+function addDepEditor(){ _edit.deps.push({ id:'', tipo:'TI', folga:0 }); renderEdDeps(); }
+function fecharEditor(){ fecharModal('modalEditor'); _edit = null; }
+
+async function salvarEditor(){
+  if(!_edit) return;
+  const item = document.getElementById('edItem').value.trim();
+  const tipo = document.getElementById('edTipo').value;
+  const durTxt = document.getElementById('edDur').value;
+  const duracao = parseInt(durTxt, 10);
+  const inicio_fixo = document.getElementById('edFixo').value || null;
+  const deps = _edit.deps.filter(d => d.id).map(d => ({ id:d.id, tipo: d.tipo === 'II' ? 'II' : 'TI', folga: parseInt(d.folga,10) || 0 }));
+  if(!item) return alert('Dê um nome à etapa.');
+  if(isNaN(duracao) || duracao < 0) return alert('Duração precisa ser um número de dias úteis (0 ou mais).');
+  const idsDep = deps.map(d => d.id);
+  if(new Set(idsDep).size !== idsDep.length) return alert('A mesma etapa aparece duas vezes nas dependências.');
+  const bloqueadas = _edit.id ? descendentes(_edit.id) : new Set();
+  if(deps.some(d => d.id === _edit.id || bloqueadas.has(d.id))) return alert('Essa dependência criaria um círculo (uma etapa esperando por ela mesma).');
+
+  const novo = { item, tipo, duracao, inicio_fixo, deps };
+  const t = _edit.id ? tarefas.find(x => x.id === _edit.id) : null;
+  const fimAntes = calc.fim;
+  const btn = document.getElementById('edSalvar');
+
+  if(t){
+    const antes = { item:t.item, tipo:t.tipo, duracao:t.duracao, inicio_fixo:t.inicio_fixo||null, deps:t.deps||[] };
+    const mudouData = antes.duracao !== duracao || antes.inicio_fixo !== inicio_fixo || JSON.stringify(antes.deps) !== JSON.stringify(deps);
+    const mudouAlgo = mudouData || antes.item !== item || antes.tipo !== tipo;
+    if(!mudouAlgo) return fecharEditor();
+    let motivo = null;
+    if(baseline && mudouData){ motivo = await pedirMotivo(TXT_MOTIVO); if(!motivo) return; }
+    btn.disabled = true;
+    const { data, error } = await sb.from('cronograma_tarefas')
+      .update(Object.assign({}, novo, { rev: (t.rev||1)+1, updated_at: new Date().toISOString(), updated_by: usuarioNome }))
+      .eq('id', t.id).eq('rev', t.rev||1).select();
+    btn.disabled = false;
+    if(error) return alert('Não consegui salvar: '+error.message);
+    if(!data || !data.length){
+      alert('Outra pessoa da equipe alterou esta etapa enquanto você editava. Vou recarregar o cronograma: confira e refaça a sua mudança.');
+      fecharEditor(); await recarregar(); return;
+    }
+    Object.assign(t, data[0]);
+    recalcular();
+    await registrarLog('alterou', t, Object.assign(antes, { termino: iso(fimAntes) }), Object.assign({}, novo, { termino: iso(calc.fim) }), motivo);
+  } else {
+    let motivo = null;
+    if(baseline){ motivo = await pedirMotivo(TXT_MOTIVO + ' Incluir etapa depois do prazo combinado costuma ser aditivo de escopo.'); if(!motivo) return; }
+    btn.disabled = true;
+    const linha = Object.assign({ id: novoId(), obra_id: obra.id, ordem: maxOrdem()+1, rev:1, updated_by: usuarioNome }, novo);
+    const { data, error } = await sb.from('cronograma_tarefas').insert(linha).select().single();
+    btn.disabled = false;
+    if(error) return alert('Não consegui criar: '+error.message);
+    tarefas.push(data);
+    recalcular();
+    await registrarLog('criou', data, { termino: iso(fimAntes) }, Object.assign({}, novo, { termino: iso(calc.fim) }), motivo);
+  }
+  fecharEditor();
+  renderObra();
+}
+
+async function excluirTarefa(){
+  if(!_edit || !_edit.id) return;
+  const t = tarefas.find(x => x.id === _edit.id);
+  if(!t) return;
+  const dependentes = tarefas.filter(x => (x.deps || []).some(d => d.id === t.id));
+  if(!confirm('Excluir "'+t.item+'"?' + (dependentes.length ? '\n\n'+dependentes.length+' etapa(s) dependem dela e vão perder essa dependência: '+dependentes.map(x => x.item).join(', ') : ''))) return;
+  let motivo = null;
+  if(baseline){ motivo = await pedirMotivo(TXT_MOTIVO); if(!motivo) return; }
+  const fimAntes = calc.fim;
+  for(const x of dependentes){
+    const novasDeps = x.deps.filter(d => d.id !== t.id);
+    const { error } = await sb.from('cronograma_tarefas').update({ deps: novasDeps, rev:(x.rev||1)+1, updated_at: new Date().toISOString(), updated_by: usuarioNome }).eq('id', x.id);
+    if(error) return alert('Não consegui ajustar as dependências de "'+x.item+'": '+error.message);
+    x.deps = novasDeps; x.rev = (x.rev||1)+1;
+  }
+  const { error } = await sb.from('cronograma_tarefas').delete().eq('id', t.id);
+  if(error) return alert('Não consegui excluir: '+error.message);
+  tarefas = tarefas.filter(x => x.id !== t.id);
+  recalcular();
+  await registrarLog('removeu', t, { item:t.item, duracao:t.duracao, deps:t.deps, termino: iso(fimAntes) }, { termino: iso(calc.fim) }, motivo);
+  fecharEditor();
+  renderObra();
+}
+
+async function ordenarPorData(){
+  const lista = tarefas.slice().sort((a,b) => (calc.t[a.id].es - calc.t[b.id].es) || (calc.t[a.id].ef - calc.t[b.id].ef) || (a.ordem - b.ordem));
+  for(let i = 0; i < lista.length; i++){
+    if(lista[i].ordem === i+1) continue;
+    const { error } = await sb.from('cronograma_tarefas').update({ ordem: i+1 }).eq('id', lista[i].id);
+    if(error) return alert('Não consegui reordenar: '+error.message);
+    lista[i].ordem = i+1;
+  }
+  renderObra();
+}
+
+async function recarregar(){ if(await carregarDados()) renderObra(); }
+
+/* ── PONTOS DE PARTIDA ──────────────────────────────────────────── */
+async function motivoParaIncluir(){
+  if(!baseline) return { ok:true, motivo:null };
+  const m = await pedirMotivo(TXT_MOTIVO + ' Incluir etapas depois do prazo combinado costuma ser aditivo de escopo.');
+  return { ok: !!m, motivo: m };
+}
+async function inserirTarefas(linhas, origem, motivo){
+  const fimAntes = calc.fim;
+  const { data, error } = await sb.from('cronograma_tarefas').insert(linhas).select();
+  if(error){ alert('Não consegui criar as etapas: '+error.message); return false; }
+  tarefas = tarefas.concat(data || []);
+  recalcular();
+  await registrarLog('importou', null, { termino: iso(fimAntes) }, { origem, quantidade: linhas.length, termino: iso(calc.fim) }, motivo);
+  renderObra();
+  return true;
+}
+
+async function criarDoModelo(){
+  if(!config.data_inicio) return alert('Preencha a data de início da obra primeiro.');
+  if(tarefas.length && !confirm('Já existem '+tarefas.length+' etapas. As do modelo serão ADICIONADAS ao final. Continuar?')) return;
+  const { ok, motivo } = await motivoParaIncluir(); if(!ok) return;
+  const ids = MODELO.map(() => novoId());
+  const base = maxOrdem();
+  const linhas = MODELO.map((m,k) => ({
+    id: ids[k], obra_id: obra.id, ordem: base+k+1, tipo: m.tipo, item: m.item, duracao: m.dur,
+    deps: m.deps.map(([i,tp,f]) => ({ id: ids[i], tipo: tp, folga: f })), inicio_fixo: null, rev: 1, updated_by: usuarioNome
+  }));
+  await inserirTarefas(linhas, 'modelo sugerido', motivo);
+}
+
+/* linhas: [{tipo, item, inicio:Date|null, fim:Date|null}] com datas completas */
+async function criarTarefasDeDatas(linhas, origem){
+  if(!linhas.length) return alert('Não encontrei etapas para trazer.');
+  if(tarefas.length && !confirm('Já existem '+tarefas.length+' etapas. As importadas serão ADICIONADAS ao final (não substitui nada). Continuar?')) return;
+  const { ok, motivo } = await motivoParaIncluir(); if(!ok) return;
+  if(!config.data_inicio){
+    const comData = linhas.filter(l => l.inicio).map(l => l.inicio).sort((a,b) => a - b);
+    const ini = comData[0] || hoje();
+    const r = await salvarConfig({ data_inicio: iso(ini) }, false);
+    if(!r) return;
+  }
+  montarCalendario(config);
+  const ordenadasL = linhas.slice().sort((a,b) => (a.inicio ? a.inicio.getTime() : Infinity) - (b.inicio ? b.inicio.getTime() : Infinity));
+  const base = maxOrdem();
+  const out = ordenadasL.map((l,k) => ({
+    id: novoId(), obra_id: obra.id, ordem: base+k+1, tipo: l.tipo || 'Civil', item: l.item,
+    duracao: l.inicio && l.fim ? Math.max(1, uteisNoIntervalo(l.inicio, l.fim)) : 5,
+    deps: [], inicio_fixo: l.inicio ? iso(l.inicio) : null, rev: 1, updated_by: usuarioNome
+  }));
+  if(await inserirTarefas(out, origem, motivo)){
+    alert('✓ '+out.length+' etapas criadas.\n\nElas vieram com a data atual "travada" (📌) e ainda sem dependências. Próximo passo: abra cada etapa, diga de quem ela depende e apague o "não começar antes de". A partir daí a data passa a ser calculada.');
+  }
+}
+
+async function importarDoRelatorio(){
+  const doRasc = (rasc && rasc.dados && Array.isArray(rasc.dados.etapas)) ? rasc.dados.etapas.filter(e => e && e.item && e.status !== 'na') : [];
+  const lista = doRasc.length ? doRasc : (Array.isArray(obra.etapas_base) ? obra.etapas_base : []);
+  if(!lista.length) return alert('O relatório desta obra ainda não tem etapas.');
+  // O relatório guarda DD/MM sem ano: escolho o ano que deixa a data mais perto da referência
+  const ref = deISO(config.data_inicio) || hoje();
+  const conv = s => {
+    const m = String(s||'').match(/^(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?/); if(!m) return null;
+    if(m[3]){ const a = +m[3] < 100 ? 2000 + +m[3] : +m[3]; return new Date(a, +m[2]-1, +m[1], 12); }
+    let best = null;
+    [ref.getFullYear()-1, ref.getFullYear(), ref.getFullYear()+1].forEach(y => {
+      const d = new Date(y, +m[2]-1, +m[1], 12);
+      if(!best || Math.abs(d - ref) < Math.abs(best - ref)) best = d;
+    });
+    return best;
+  };
+  const linhas = lista.map(e => {
+    const inicio = conv(e.inicio); let fim = conv(e.fim);
+    if(inicio && fim && fim < inicio) fim = new Date(fim.getFullYear()+1, fim.getMonth(), fim.getDate(), 12);
+    return { tipo: e.tipo, item: e.item, inicio, fim };
+  });
+  await criarTarefasDeDatas(linhas, 'relatório');
+}
+
+/* Importação do macrocronograma — mesma leitura de cores do relatório */
+function _corCelula(cell){
+  const fg = cell.fill && cell.fill.type === 'pattern' && cell.fill.pattern === 'solid' ? cell.fill.fgColor : null;
+  if(!fg) return null;
+  if(fg.theme !== undefined) return 'theme'+fg.theme+'_'+Math.round((fg.tint||0)*1000);
+  if(fg.argb) return 'argb'+fg.argb;
+  return null;
+}
+async function importarExcel(input){
+  const file = input.files[0]; input.value = '';
+  if(!file) return;
+  try {
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(await file.arrayBuffer());
+    let ws = null;
+    wb.worksheets.forEach(sheet => {
+      if(ws) return;
+      const h = [1,2,3].map(c => String(sheet.getRow(1).getCell(c).value||'').trim().toLowerCase());
+      if(h[0]==='tipo' && h[1]==='item' && h[2]==='status') ws = sheet;
+    });
+    if(!ws) return alert('Não encontrei uma aba com as colunas "Tipo", "Item" e "Status".');
+    const colunaData = {};
+    for(let col = 4; col <= ws.columnCount; col++){
+      const v = ws.getRow(1).getCell(col).value;
+      if(v && Object.prototype.toString.call(v) === '[object Date]') colunaData[col] = v;
+    }
+    const cols = Object.keys(colunaData).map(Number).sort((a,b) => a-b);
+    if(!cols.length) return alert('Não encontrei colunas de data a partir da coluna D.');
+    const linhas = [];
+    for(let row = 2; row <= ws.rowCount; row++){
+      const tipo = ws.getRow(row).getCell(1).value, item = ws.getRow(row).getCell(2).value, status = ws.getRow(row).getCell(3).value;
+      if(!tipo && !item && !status) break;
+      if(!item) continue;
+      linhas.push({ row, tipo: tipo ? String(tipo).trim() : '', item: String(item).trim(), status: status ? String(status).trim() : '' });
+    }
+    const maior = {};
+    linhas.forEach(l => {
+      const porCor = {};
+      cols.forEach(col => { const k = _corCelula(ws.getRow(l.row).getCell(col)); if(k) (porCor[k] = porCor[k] || []).push(col); });
+      Object.entries(porCor).forEach(([k, cs]) => {
+        let m = 1, a = 1;
+        for(let i = 1; i < cs.length; i++){ a = (cs[i]-cs[i-1] <= 3) ? a+1 : 1; if(a > m) m = a; }
+        if(!maior[k] || m > maior[k]) maior[k] = m;
+      });
+    });
+    const ranking = Object.entries(maior).sort((a,b) => b[1]-a[1]);
+    if(!ranking.length || ranking[0][1] < 3) return alert('Não consegui identificar as barras de data na planilha.');
+    const cor = ranking[0][0];
+    // Datas do Excel chegam em UTC: uso o dia UTC para não "voltar um dia" no fuso de São Paulo
+    const local = d => d ? new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 12) : null;
+    const saida = linhas.filter(l => !/não se aplica/i.test(l.status)).map(l => {
+      const cs = cols.filter(col => _corCelula(ws.getRow(l.row).getCell(col)) === cor);
+      return { tipo: l.tipo || 'Civil', item: l.item, inicio: cs.length ? local(colunaData[cs[0]]) : null, fim: cs.length ? local(colunaData[cs[cs.length-1]]) : null };
+    });
+    await criarTarefasDeDatas(saida, 'Excel');
+  } catch(e) { alert('Erro ao ler a planilha: '+e.message); }
+}
+
+/* ── LINHA DE BASE ──────────────────────────────────────────────── */
+async function congelarBase(){
+  if(!ehSuzana()) return alert('Só a Suzana congela a linha de base.');
+  if(!tarefas.length) return alert('Crie as etapas primeiro.');
+  if(!config.data_inicio) return alert('Preencha a data de início da obra.');
+  if(calc.ciclos.size) return alert('Corrija as dependências em círculo antes de congelar.');
+  let motivo = null;
+  if(baseline){
+    motivo = await pedirMotivo('A nova linha de base passa a ser o prazo de referência. A v'+baseline.versao+' continua guardada. Use quando o prazo for renegociado com o cliente, por exemplo num aditivo.');
+    if(!motivo) return;
+  } else if(!confirm('Congelar a linha de base?\n\nAs datas de hoje viram o PRAZO COMBINADO com o cliente (término '+br(calc.fim)+'). A partir daí, toda mudança de data pede motivo e fica registrada.\n\nFaça isso depois de revisar o cronograma e, de preferência, depois de o cliente aprovar as datas.')) return;
+  const snap = { termino: iso(calc.fim), inicio_obra: config.data_inicio, tarefas: {} };
+  tarefas.forEach(t => { const c = calc.t[t.id]; snap.tarefas[t.id] = { item: t.item, inicio: iso(c.inicio), fim: iso(c.fim) }; });
+  const versao = (baseline ? baseline.versao : 0) + 1;
+  const { data, error } = await sb.from('cronograma_baselines').insert({
+    obra_id: obra.id, versao, snapshot: snap, motivo: motivo ? motivo.cat+' — '+motivo.texto : null, criado_por: usuarioNome
+  }).select().single();
+  if(error) return alert(/row-level security|policy/i.test(error.message) ? 'O banco recusou: só a Suzana pode congelar a linha de base.' : 'Não consegui congelar: '+error.message);
+  baseline = data;
+  await registrarLog('linha_de_base', null, null, { versao, termino: snap.termino }, motivo);
+  renderObra();
+}
+
+/* ── ENVIAR AO RELATÓRIO ────────────────────────────────────────── */
+function planoEnvio(etapasRel){
+  const porChave = {};
+  etapasRel.forEach((e,i) => { const k = chaveNome(e.item); if(k && porChave[k] === undefined) porChave[k] = i; });
+  const alteradas = [], novas = [], usados = new Set();
+  tarefas.slice().sort((a,b) => calc.t[a.id].es - calc.t[b.id].es).forEach(t => {
+    const c = calc.t[t.id];
+    const ini = br(c.inicio), fim = br(c.fim); // DD/MM/AA: o ano evita embaralhar obras que viram o ano
+    const i = porChave[chaveNome(t.item)];
+    if(i !== undefined){
+      usados.add(i);
+      const e = etapasRel[i];
+      if((e.inicio||'') !== ini || (e.fim||'') !== fim) alteradas.push({ i, item: e.item, antes: (e.inicio||'—')+' a '+(e.fim||'—'), ini, fim });
+    } else novas.push({ tipo: t.tipo || 'Extra', item: t.item, ini, fim });
+  });
+  const soRelatorio = etapasRel.filter((e,i) => !usados.has(i) && e.status !== 'na').map(e => e.item);
+  return { alteradas, novas, soRelatorio };
+}
+async function buscarRascunho(){
+  const { data, error } = await sb.from('relatorios').select('id,dados,updated_at,updated_by')
+    .eq('obra_id', obra.id).eq('status','rascunho').order('updated_at', { ascending:false }).limit(1);
+  if(error) throw error;
+  return (data || [])[0] || null;
+}
+function etapasDoRascunho(r){
+  if(r && r.dados && Array.isArray(r.dados.etapas) && r.dados.etapas.filter(Boolean).length) return r.dados.etapas.filter(Boolean).map(e => Object.assign({}, e));
+  return (Array.isArray(obra.etapas_base) ? obra.etapas_base : []).map(e => Object.assign({ pct:0, status:'', obs:'', proximo:'' }, e));
+}
+async function prepararEnvio(){
+  if(!tarefas.length) return;
+  if(calc.ciclos.size) return alert('Corrija as dependências em círculo antes de enviar.');
+  if(!config.data_inicio) return alert('Preencha a data de início da obra.');
+  let r;
+  try { r = await buscarRascunho(); } catch(e) { return alert('Não consegui ler o relatório: '+e.message); }
+  const plano = planoEnvio(etapasDoRascunho(r));
+  _envio = { plano };
+  let h = '';
+  const minutos = r && r.updated_at ? Math.round((Date.now() - new Date(r.updated_at).getTime())/60000) : null;
+  if(r && minutos !== null && minutos < 30 && r.updated_by && r.updated_by !== usuarioNome){
+    h += '<div class="erro-box">⚠ <strong>'+esc(r.updated_by)+'</strong> mexeu no relatório desta obra há '+minutos+' min. Se ainda estiver com ele aberto, o salvamento automático pode sobrescrever estas datas. Peça para fechar ou recarregar a página antes de enviar.</div>';
+  }
+  if(!plano.alteradas.length && !plano.novas.length){
+    h += '<div class="info-box">As datas do relatório já estão iguais às do cronograma. Nada a enviar.</div>';
+    document.getElementById('btnConfirmarEnvio').style.display = 'none';
+  } else {
+    document.getElementById('btnConfirmarEnvio').style.display = 'inline-block';
+    if(plano.alteradas.length) h += '<div class="card-label">Datas que vão mudar ('+plano.alteradas.length+')</div><div class="lista-envio">' + plano.alteradas.map(a => '<div><strong>'+esc(a.item)+'</strong>: '+esc(a.antes)+' → '+a.ini+' a '+a.fim+'</div>').join('') + '</div>';
+    if(plano.novas.length) h += '<div class="card-label">Etapas novas no relatório ('+plano.novas.length+')</div><div class="lista-envio">' + plano.novas.map(a => '<div><strong>'+esc(a.item)+'</strong>: '+a.ini+' a '+a.fim+'</div>').join('') + '</div>';
+  }
+  if(plano.soRelatorio.length) h += '<div class="alert-box">Estas etapas existem no relatório mas não no cronograma, e ficam como estão: '+plano.soRelatorio.map(esc).join(', ')+'. Se forem a mesma etapa com outro nome, use o mesmo nome nos dois lados.</div>';
+  h += '<div class="hint" style="margin:6px 0 0;">Só as datas são enviadas; status, % e observações do relatório não são tocados. Quem estiver com o relatório desta obra aberto precisa recarregar a página.</div>';
+  document.getElementById('envioConteudo').innerHTML = h;
+  document.getElementById('modalEnvio').classList.add('open');
+}
+async function confirmarEnvio(){
+  const btn = document.getElementById('btnConfirmarEnvio');
+  btn.disabled = true; btn.textContent = 'Enviando...';
+  try {
+    const r = await buscarRascunho(); // relê na hora, para pegar a versão mais recente
+    const etapasRel = etapasDoRascunho(r);
+    const plano = planoEnvio(etapasRel);
+    plano.alteradas.forEach(a => { etapasRel[a.i].inicio = a.ini; etapasRel[a.i].fim = a.fim; });
+    plano.novas.forEach(n => etapasRel.push({ tipo: n.tipo, item: n.item, inicio: n.ini, fim: n.fim, pct:0, status:'', obs:'', proximo:'', manual:true }));
+    const etapasFinal = ordenarEtapasRelatorio(etapasRel);
+    const agora = new Date().toISOString();
+    if(r){
+      const dados = Object.assign({}, r.dados || {}, { etapas: etapasFinal, savedAt: Date.now() });
+      const { error } = await sb.from('relatorios').update({ dados, updated_at: agora, updated_by: usuarioNome }).eq('id', r.id);
+      if(error) throw error;
+    } else {
+      const dados = { obraKey: obra.key, savedAt: Date.now(), cliente: obra.cliente || '', semana: '', cidade: obra.cidade || '', responsavel: '', transcricao: '',
+        etapas: etapasFinal, ambFotos: [], qtdFotos: 0, realizacoes: [], previstos: [], pendencias: [], imprevistos: [], observacoes: [] };
+      const { error } = await sb.from('relatorios').insert({ obra_id: obra.id, semana: '', status: 'rascunho', dados, created_by: usuarioNome, updated_by: usuarioNome });
+      if(error) throw error;
+    }
+    // Atualiza também o molde da obra (usado quando alguém "começa do zero" no relatório)
+    const baseObra = (Array.isArray(obra.etapas_base) ? obra.etapas_base : []).map(e => Object.assign({}, e));
+    const pb = planoEnvio(baseObra);
+    pb.alteradas.forEach(a => { baseObra[a.i].inicio = a.ini; baseObra[a.i].fim = a.fim; });
+    pb.novas.forEach(n => baseObra.push({ tipo: n.tipo, item: n.item, inicio: n.ini, fim: n.fim }));
+    const baseFinal = ordenarEtapasRelatorio(baseObra);
+    const ob = await sb.from('obras').update({ etapas_base: baseFinal }).eq('id', obra.id);
+    if(!ob.error) obra.etapas_base = baseFinal;
+    await registrarLog('enviou_relatorio', null, null, { alteradas: plano.alteradas.length, novas: plano.novas.length });
+    rasc = await buscarRascunho();
+    fecharModal('modalEnvio');
+    renderObra();
+    alert('✓ Datas enviadas ao relatório.' + (ob.error ? '\n(Obs.: o molde da obra não foi atualizado: '+ob.error.message+')' : ''));
+  } catch(e) {
+    alert('Não consegui enviar: '+e.message);
+  }
+  btn.disabled = false; btn.textContent = 'Enviar';
+}
+
+/* ── IMPRIMIR ───────────────────────────────────────────────────── */
+function imprimir(){
+  aba = 'gantt';
+  renderObra();
+  setTimeout(() => window.print(), 300);
+}
+
+/* ── INIT ───────────────────────────────────────────────────────── */
+async function init(){
+  if(!sb){ mostrar('pageLogin'); const e = document.getElementById('loginErro'); e.textContent = 'O sistema não carregou. Verifique a internet e recarregue.'; e.style.display = 'block'; return; }
+  try {
+    const { data } = await sb.auth.getSession();
+    if(data && data.session) await entrar(data.session);
+    else mostrar('pageLogin');
+  } catch(e) { mostrar('pageLogin'); }
+}
+// Ao voltar para a aba, busca o que a equipe mudou (sem atrapalhar quem está editando)
+document.addEventListener('visibilitychange', () => {
+  if(document.visibilityState === 'visible' && obra && !algumModalAberto() && !_carregando) recarregar();
+});
+init();
+</script>
+</body>
+</html>
