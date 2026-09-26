@@ -570,6 +570,7 @@ let tarefas = [];       // cronograma_tarefas
 let baseline = null;    // última linha de base
 let rasc = null;        // rascunho atual do relatório (para ler os %)
 let logRows = [];
+let modelos = [];       // biblioteca de modelos (cronograma_modelos)
 let calc = { t:{}, ciclos:new Set(), fim:null };
 let aba = 'lista';
 let _edit = null;
@@ -678,6 +679,8 @@ async function carregarDados(){
     baseline = (bl.data || [])[0] || null;
     rasc = rs.error ? null : ((rs.data || [])[0] || null);
     logRows = lg.data || [];
+    const md = await sb.from('cronograma_modelos').select('*').order('nome');
+    modelos = md.error ? [] : (md.data || []); // se a tabela ainda não existe, usa só o modelo padrão
     recalcular();
     return true;
   } catch(e) {
@@ -751,6 +754,7 @@ function renderObra(){
       '<button class="btn-secondary" onclick="imprimir()">🖨 Imprimir / PDF</button>' +
       '<button class="btn-secondary" onclick="ordenarPorData()">🔃 Ordenar por data</button>' +
       '<button class="btn-secondary" onclick="recarregar()">↻ Atualizar</button>' +
+      (ehSuzana() ? '<button class="btn-secondary" onclick="salvarComoModelo()">💾 Salvar como modelo</button>' : '') +
     '</div>';
     h += '<div class="tabs no-print"><div class="tab'+(aba==='lista'?' active':'')+'" onclick="trocarAba(\'lista\')">Lista</div><div class="tab'+(aba==='gantt'?' active':'')+'" onclick="trocarAba(\'gantt\')">Gantt</div><div class="tab'+(aba==='historico'?' active':'')+'" onclick="trocarAba(\'historico\')">Histórico ('+logRows.length+')</div></div>';
     if(aba === 'lista') h += htmlLista();
@@ -777,10 +781,10 @@ function htmlResumo(){
   if(baseline){
     const bFim = deISO(baseline.snapshot && baseline.snapshot.termino);
     const d = difUteis(bFim, calc.fim);
-    h += kpi('Prazo combinado (base v'+baseline.versao+')', br(bFim), 'congelada em '+br(new Date(baseline.criado_em))+' · '+esc(baseline.criado_por||''));
+    h += kpi(baseline.versao > 1 ? 'Cronograma revisado (v'+baseline.versao+')' : 'Cronograma inicial', br(bFim), 'congelado em '+br(new Date(baseline.criado_em))+' · '+esc(baseline.criado_por||''));
     h += kpi('Desvio no término', d == null ? '—' : (d > 0 ? '<span class="d-atraso">+'+d+' dias úteis</span>' : d < 0 ? '<span class="d-adiant">'+d+' dias úteis</span>' : '<span class="d-ok">no prazo</span>'), d > 0 ? 'atraso sobre o combinado' : '');
   } else {
-    h += kpi('Prazo combinado', '—', 'linha de base ainda não congelada');
+    h += kpi('Cronograma inicial', '—', 'ainda não congelado');
   }
   h += kpi('Etapas atrasadas', atrasadas ? '<span class="d-atraso">'+atrasadas+'</span>' : '0', 'pelo % do último relatório');
   h += kpi('Caminho crítico', criticas+' etapas', 'se atrasarem, atrasam a obra');
@@ -790,12 +794,12 @@ function htmlResumo(){
   h += '</div>';
   if(ehSuzana()){
     h += '<div class="toolbar no-print">' + (baseline
-      ? '<button class="btn-secondary" onclick="congelarBase()">🔒 Nova linha de base (v'+(baseline.versao+1)+')</button>'
-      : '<button class="btn-dark" onclick="congelarBase()">🔒 Congelar linha de base</button>') + '</div>';
+      ? '<button class="btn-secondary" onclick="congelarBase()">🔒 Congelar cronograma revisado (v'+(baseline.versao+1)+')</button>'
+      : '<button class="btn-dark" onclick="congelarBase()">🔒 Congelar cronograma inicial</button>') + '</div>';
   } else if(!baseline) {
-    h += '<div class="hint no-print" style="margin:0 0 14px;">A linha de base (prazo combinado com o cliente) é congelada pela Suzana.</div>';
+    h += '<div class="hint no-print" style="margin:0 0 14px;">O cronograma inicial (o prazo aprovado pelo cliente) é congelado pela Suzana.</div>';
   }
-  if(baseline) h += '<div class="info-box no-print">🔒 Linha de base congelada: qualquer mudança de duração, dependência, data ou calendário agora pede um motivo e fica registrada no histórico.</div>';
+  if(baseline) h += '<div class="info-box no-print">🔒 Cronograma inicial congelado: qualquer mudança de duração, dependência, data ou calendário agora pede um motivo e fica registrada no histórico.</div>';
   return h;
 }
 function kpi(l, v, s){ return '<div class="kpi"><div class="kpi-l">'+l+'</div><div class="kpi-v">'+v+'</div>'+(s?'<div class="kpi-s">'+s+'</div>':'')+'</div>'; }
@@ -829,15 +833,21 @@ function htmlConfig(semInicio){
 }
 
 function htmlVazio(semInicio){
+  const opts = modelos.map(m => '<option value="'+m.id+'">'+esc(m.nome)+' ('+(m.etapas||[]).length+' etapas)</option>').join('') +
+    '<option value="padrao">Modelo padrão do sistema ('+MODELO.length+' etapas)</option>';
   return '<div class="card no-print"><div class="card-label">Como começar</div>' +
     '<div class="sec-sub" style="margin-bottom:14px;">Escolha um ponto de partida. Depois você ajusta durações e dependências etapa por etapa.</div>' +
+    '<div class="row-2" style="align-items:end;">' +
+      '<div><label>Modelo (já amarrado)</label><select id="selModelo">'+opts+'</select></div>' +
+      '<div style="margin-bottom:14px;display:flex;gap:8px;flex-wrap:wrap;"><button class="btn-primary" '+(semInicio?'disabled title="Preencha a data de início"':'')+' onclick="criarDoModelo()">Usar este modelo</button>' +
+        (ehSuzana() && modelos.length ? '<button class="btn-danger-txt" onclick="excluirModelo()">Excluir modelo</button>' : '') + '</div>' +
+    '</div>' +
     '<div class="toolbar">' +
-      '<button class="btn-primary" '+(semInicio?'disabled title="Preencha a data de início"':'')+' onclick="criarDoModelo()">Usar modelo sugerido (já amarrado)</button>' +
       '<button class="btn-secondary" onclick="importarDoRelatorio()">Trazer etapas do relatório</button>' +
       '<button class="btn-secondary" onclick="document.getElementById(\'excelInput\').click()">Importar macrocronograma (Excel)</button>' +
       '<button class="btn-secondary" onclick="abrirEditor(null)">Começar do zero</button>' +
     '</div>' +
-    '<div class="hint" style="margin:6px 0 0;">O modelo sugerido vem com as dependências típicas de uma reforma de interiores. As durações são estimativas iniciais minhas, não um padrão de mercado: revise antes de congelar a linha de base. Relatório e Excel trazem as datas atuais "travadas" (📌); amarre as dependências e tire o 📌 para as datas passarem a ser calculadas.</div>' +
+    '<div class="hint" style="margin:6px 0 0;">Os modelos já vêm com as dependências. Revise as durações antes de congelar o cronograma inicial. Relatório e Excel trazem as datas atuais "travadas" (📌); amarre as dependências e tire o 📌 para as datas passarem a ser calculadas.</div>' +
   '</div>';
 }
 
@@ -915,7 +925,7 @@ function htmlGantt(){
     '<span><i style="background:var(--red-alert)"></i>Caminho crítico</span>' +
     '<span><i style="background:var(--green-ok)"></i>Concluída</span>' +
     '<span><i style="background:var(--salmon);background-image:repeating-linear-gradient(45deg,rgba(255,255,255,.55) 0 3px,transparent 3px 7px)"></i>Prazo de fornecedor não confirmado</span>' +
-    '<span><i style="background:var(--brown-light);height:4px;"></i>Linha de base</span>' +
+    '<span><i style="background:var(--brown-light);height:4px;"></i>Cronograma inicial</span>' +
     '<span><i style="background:var(--amber);width:2px;"></i>Hoje</span>' +
   '</div>';
   h += '<div class="gantt-wrap"><div style="width:'+(larg+220)+'px;">';
@@ -939,7 +949,7 @@ function htmlGantt(){
   return h;
 }
 
-const ACOES = { criou:'Criou etapa', alterou:'Alterou etapa', removeu:'Removeu etapa', config:'Alterou calendário', linha_de_base:'Congelou linha de base', importou:'Importou etapas', enviou_relatorio:'Enviou datas ao relatório' };
+const ACOES = { criou:'Criou etapa', alterou:'Alterou etapa', removeu:'Removeu etapa', config:'Alterou calendário', linha_de_base:'Congelou cronograma', importou:'Importou etapas', enviou_relatorio:'Enviou datas ao relatório', salvou_modelo:'Salvou como modelo' };
 function htmlHistorico(){
   if(!logRows.length) return '<div class="card"><div class="hint" style="margin:0;">Nenhuma alteração registrada ainda.</div></div>';
   let h = '<div class="card">';
@@ -981,6 +991,8 @@ function detalheLog(r){
     partes.push('Versão '+d.versao+' · término combinado '+br(deISO(d.termino)));
   } else if(r.acao === 'importou'){
     partes.push((d.quantidade||0)+' etapas · origem: '+esc(d.origem||''));
+  } else if(r.acao === 'salvou_modelo'){
+    partes.push('Modelo "'+esc(d.nome||'')+'" · '+(d.etapas||0)+' etapas');
   } else if(r.acao === 'enviou_relatorio'){
     partes.push((d.alteradas||0)+' datas atualizadas, '+(d.novas||0)+' etapas novas no relatório'+(d.previsao ? ' · previsão enviada: '+br(deISO(d.previsao)) : '')+(d.alteracoes_prazo ? ' · '+d.alteracoes_prazo+' alteração(ões) de prazo informadas' : ''));
   }
@@ -1022,7 +1034,7 @@ function responderMotivo(v){
   const r = _motivoResolver; _motivoResolver = null;
   if(r) r(v);
 }
-const TXT_MOTIVO = 'A linha de base já está congelada. Toda mudança que mexe em datas fica registrada com autor, data e motivo.';
+const TXT_MOTIVO = 'O cronograma inicial já está congelado. Toda mudança que mexe em datas fica registrada com autor, data e motivo.';
 
 /* ── CALENDÁRIO ─────────────────────────────────────────────────── */
 async function salvarConfig(patch, comMotivo){
@@ -1078,7 +1090,7 @@ function addFeriado(){
   const nome = document.getElementById('novoFerNome').value.trim() || 'Sem obra';
   if(!de) return alert('Escolha a data.');
   if(ate < de) return alert('A data final é antes da inicial.');
-  if(diasCorridos(de, ate) > 60) return alert('Período muito longo (máx. 60 dias). Parada maior que isso costuma pedir nova linha de base.');
+  if(diasCorridos(de, ate) > 60) return alert('Período muito longo (máx. 60 dias). Parada maior que isso costuma pedir um cronograma revisado.');
   const datas = []; for(let d = de; d <= ate; d = addDias(d,1)) datas.push(iso(d));
   const set = new Set(datas);
   const lista = (config.feriados || []).filter(f => !set.has(f.data)).concat(datas.map(data => ({ data, nome })));
@@ -1266,16 +1278,62 @@ async function inserirTarefas(linhas, origem, motivo){
 
 async function criarDoModelo(){
   if(!config.data_inicio) return alert('Preencha a data de início da obra primeiro.');
+  const sel = document.getElementById('selModelo') ? document.getElementById('selModelo').value : 'padrao';
+  const m = modelos.find(x => String(x.id) === sel);
+  const etapas = m ? (m.etapas || []) : MODELO;
+  const nomeModelo = m ? m.nome : 'modelo padrão';
+  if(!etapas.length) return alert('Esse modelo está vazio.');
   if(tarefas.length && !confirm('Já existem '+tarefas.length+' etapas. As do modelo serão ADICIONADAS ao final. Continuar?')) return;
   const { ok, motivo } = await motivoParaIncluir(); if(!ok) return;
-  const ids = MODELO.map(() => novoId());
+  const ids = etapas.map(() => novoId());
   const base = maxOrdem();
-  const linhas = MODELO.map((m,k) => ({
-    id: ids[k], obra_id: obra.id, ordem: base+k+1, tipo: m.tipo, item: m.item, duracao: m.dur,
-    deps: m.deps.map(([i,tp,f]) => ({ id: ids[i], tipo: tp, folga: f })), inicio_fixo: null, rev: 1, updated_by: usuarioNome,
-    fornecedor: m.forn ? { depende: true, confirmado: false } : { depende: false }
+  const linhas = etapas.map((e,k) => ({
+    id: ids[k], obra_id: obra.id, ordem: base+k+1, tipo: e.tipo || 'Civil', item: e.item, duracao: parseInt(e.dur,10) || 0,
+    deps: (e.deps || []).filter(([i]) => ids[i]).map(([i,tp,f]) => ({ id: ids[i], tipo: tp === 'II' ? 'II' : 'TI', folga: parseInt(f,10) || 0 })),
+    inicio_fixo: null, rev: 1, updated_by: usuarioNome,
+    fornecedor: e.forn ? { depende: true, confirmado: false } : { depende: false }
   }));
-  await inserirTarefas(linhas, 'modelo sugerido', motivo);
+  await inserirTarefas(linhas, nomeModelo, motivo);
+}
+
+/* ── MODELOS (biblioteca) ───────────────────────────────────────── */
+async function salvarComoModelo(){
+  if(!ehSuzana()) return alert('Só a Suzana salva modelos.');
+  if(!tarefas.length) return;
+  if(calc.ciclos.size) return alert('Corrija as dependências em círculo antes de salvar como modelo.');
+  const lista = ordenadas();
+  const idx = {}; lista.forEach((t,i) => idx[t.id] = i);
+  const etapas = lista.map(t => ({
+    tipo: t.tipo || 'Civil', item: t.item, dur: parseInt(t.duracao,10) || 0,
+    deps: (t.deps || []).filter(d => idx[d.id] !== undefined).map(d => [idx[d.id], d.tipo === 'II' ? 'II' : 'TI', parseInt(d.folga,10) || 0]),
+    forn: dependeFornecedor(t)
+  }));
+  const nomes = modelos.map(m => m.nome);
+  const nome = (prompt('Nome do modelo (ex.: Reforma apartamento completo).' + (nomes.length ? '\n\nPara ATUALIZAR um modelo, use o mesmo nome:\n- ' + nomes.join('\n- ') : ''), nomes[0] || '') || '').trim();
+  if(!nome) return;
+  const fixos = lista.filter(t => t.inicio_fixo).length;
+  const existe = nomes.includes(nome);
+  if(!confirm((existe ? 'Substituir o modelo "'+nome+'"' : 'Criar o modelo "'+nome+'"') + ' com as '+etapas.length+' etapas deste cronograma?\n\nVão para o modelo: etapas, categorias, durações, dependências, folgas e quais etapas dependem de fornecedor.\nNão vão: datas, feriados, fornecedores escolhidos'+(fixos ? ' e as '+fixos+' datas travadas (📌)' : '')+'.' + (existe ? '\n\nObras que já usaram o modelo não mudam.' : ''))) return;
+  const { error } = await sb.from('cronograma_modelos').upsert({ nome, etapas, criado_por: usuarioNome, atualizado_em: new Date().toISOString() }, { onConflict: 'nome' });
+  if(error){
+    if(tabelaFaltando(error) || /cronograma_modelos/.test(error.message)) return alert('Falta criar a tabela de modelos no Supabase (bloco "Modelos de cronograma" do arquivo cronograma_supabase.sql).');
+    return alert(/row-level security|policy/i.test(error.message) ? 'O banco recusou: só a Suzana salva modelos.' : 'Não consegui salvar: '+error.message);
+  }
+  const md = await sb.from('cronograma_modelos').select('*').order('nome');
+  if(!md.error) modelos = md.data || [];
+  await registrarLog('salvou_modelo', null, null, { nome, etapas: etapas.length });
+  renderObra();
+  alert('✓ Modelo "'+nome+'" salvo. Ele aparece em "Como começar" nas próximas obras.');
+}
+async function excluirModelo(){
+  const sel = document.getElementById('selModelo');
+  const m = sel && modelos.find(x => String(x.id) === sel.value);
+  if(!m) return alert('Escolha na lista um modelo salvo (o modelo padrão do sistema não pode ser excluído).');
+  if(!confirm('Excluir o modelo "'+m.nome+'"? Obras que já usaram o modelo não mudam.')) return;
+  const { error } = await sb.from('cronograma_modelos').delete().eq('id', m.id);
+  if(error) return alert('Não consegui excluir: '+error.message);
+  modelos = modelos.filter(x => x.id !== m.id);
+  renderObra();
 }
 
 /* linhas: [{tipo, item, inicio:Date|null, fim:Date|null}] com datas completas */
@@ -1386,7 +1444,7 @@ async function importarExcel(input){
 
 /* ── LINHA DE BASE ──────────────────────────────────────────────── */
 async function congelarBase(){
-  if(!ehSuzana()) return alert('Só a Suzana congela a linha de base.');
+  if(!ehSuzana()) return alert('Só a Suzana congela o cronograma inicial.');
   if(!tarefas.length) return alert('Crie as etapas primeiro.');
   if(!config.data_inicio) return alert('Preencha a data de início da obra.');
   if(calc.ciclos.size) return alert('Corrija as dependências em círculo antes de congelar.');
@@ -1397,16 +1455,16 @@ async function congelarBase(){
   }
   let motivo = null;
   if(baseline){
-    motivo = await pedirMotivo('A nova linha de base passa a ser o prazo de referência. A v'+baseline.versao+' continua guardada. Use quando o prazo for renegociado com o cliente, por exemplo num aditivo.');
+    motivo = await pedirMotivo('O cronograma revisado passa a ser o prazo de referência. O cronograma inicial continua guardado e segue aparecendo no relatório. Use só quando o prazo for renegociado com o cliente, por exemplo num aditivo.');
     if(!motivo) return;
-  } else if(!confirm('Congelar a linha de base?\n\nAs datas de hoje viram o PRAZO COMBINADO com o cliente (término '+br(calc.fim)+'). A partir daí, toda mudança de data pede motivo e fica registrada.\n\nFaça isso depois de revisar o cronograma e, de preferência, depois de o cliente aprovar as datas.')) return;
+  } else if(!confirm('Congelar o cronograma inicial?\n\nAs datas de hoje viram o PRAZO APROVADO com o cliente (término '+br(calc.fim)+'). A partir daí, toda mudança de data pede motivo e fica registrada.\n\nFaça isso depois de revisar o cronograma e, de preferência, depois de o cliente aprovar as datas.')) return;
   const snap = { termino: iso(calc.fim), inicio_obra: config.data_inicio, tarefas: {}, prazos_nao_confirmados: tarefas.filter(pendenteFornecedor).map(t => t.item) };
   tarefas.forEach(t => { const c = calc.t[t.id]; snap.tarefas[t.id] = { item: t.item, inicio: iso(c.inicio), fim: iso(c.fim) }; });
   const versao = (baseline ? baseline.versao : 0) + 1;
   const { data, error } = await sb.from('cronograma_baselines').insert({
     obra_id: obra.id, versao, snapshot: snap, motivo: motivo ? motivo.cat+' — '+motivo.texto : null, criado_por: usuarioNome
   }).select().single();
-  if(error) return alert(/row-level security|policy/i.test(error.message) ? 'O banco recusou: só a Suzana pode congelar a linha de base.' : 'Não consegui congelar: '+error.message);
+  if(error) return alert(/row-level security|policy/i.test(error.message) ? 'O banco recusou: só a Suzana pode congelar o cronograma.' : 'Não consegui congelar: '+error.message);
   baseline = data;
   await registrarLog('linha_de_base', null, null, { versao, termino: snap.termino }, motivo);
   renderObra();
@@ -1441,7 +1499,7 @@ async function montarPrazoRelatorio(){
   logRows.slice().reverse().forEach(r => {
     if(desde && r.criado_em <= desde) return;
     if(r.acao === 'linha_de_base' && r.depois && r.depois.versao > 1){
-      prazo.alteracoes.push({ etapa: 'Prazo revisado (aditivo)', categoria: catCliente(r.motivo_categoria), impacto: null });
+      prazo.alteracoes.push({ etapa: 'Cronograma revisado (aditivo)', categoria: catCliente(r.motivo_categoria), impacto: null });
       return;
     }
     if(!r.motivo_categoria) return; // antes da linha de base não há "alteração de prazo"
@@ -1509,7 +1567,7 @@ async function prepararEnvio(){
     if(plano.novas.length) h += '<div class="card-label">Etapas novas no relatório ('+plano.novas.length+')</div><div class="lista-envio">' + plano.novas.map(a => '<div><strong>'+esc(a.item)+'</strong>: '+a.ini+' a '+a.fim+'</div>').join('') + '</div>';
   }
   if(plano.soRelatorio.length) h += '<div class="alert-box">Estas etapas existem no relatório mas não no cronograma, e ficam como estão: '+plano.soRelatorio.map(esc).join(', ')+'. Se forem a mesma etapa com outro nome, use o mesmo nome nos dois lados.</div>';
-  if(baseline) h += '<div class="info-box">O relatório também recebe o bloco <strong>Prazo da obra</strong>: prazo contratual, previsão atual, diferença em dias úteis e as alterações de prazo desde o último relatório aprovado (etapa, categoria do motivo e impacto; o detalhe escrito pela equipe não vai para o cliente). "Replanejamento interno" aparece como "Ajuste de planejamento".</div>';
+  if(baseline) h += '<div class="info-box">O relatório também recebe o bloco <strong>Prazo da obra</strong>: cronograma inicial, previsão atual, diferença em dias úteis e as alterações de prazo desde o último relatório aprovado (etapa, categoria do motivo e impacto; o detalhe escrito pela equipe não vai para o cliente). "Replanejamento interno" aparece como "Ajuste de planejamento".</div>';
   h += '<div class="hint" style="margin:6px 0 0;">Só as datas são enviadas; status, % e observações do relatório não são tocados. Quem estiver com o relatório desta obra aberto precisa recarregar a página.</div>';
   document.getElementById('envioConteudo').innerHTML = h;
   document.getElementById('modalEnvio').classList.add('open');
