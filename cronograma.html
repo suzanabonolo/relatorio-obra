@@ -224,6 +224,7 @@ table.tbl{width:100%;border-collapse:collapse;font-size:12px;min-width:880px;}
   <h3 id="edTitulo">Etapa</h3>
   <label>Nome da etapa</label>
   <input type="text" id="edItem" placeholder="Ex: Instalação de marcenaria">
+  <label class="check" style="margin-top:-6px;"><input type="checkbox" id="edNA"> Não se aplica nesta obra <span class="hint" style="margin:0 0 0 4px;text-transform:none;letter-spacing:0;">(fica no cronograma com duração zero, sem quebrar a sequência; no relatório aparece como "não se aplica")</span></label>
   <div class="row-3">
     <div><label>Categoria</label><select id="edTipo"></select></div>
     <div><label>Duração (dias úteis)</label><input type="number" id="edDur" min="0" step="1"></div>
@@ -300,7 +301,7 @@ const USUARIOS = {
   'brunatadeuarquitetura@gmail.com': 'Bruna Tadeu',
   'arqlaizleones@gmail.com': 'Laiz Leones'
 };
-const TIPOS = ['Civil','Marcenaria','Marmoraria','Vidraçaria','Churrasqueira','Decor','Extra'];
+const TIPOS = ['Escritório','Cliente','Civil','Climatização','Marcenaria','Marmoraria','Vidraçaria','Churrasqueira','Decor','Extra'];
 const MOTIVOS = ['Pedido do cliente','Fornecedor / entrega','Mão de obra','Imprevisto na obra','Replanejamento interno','Outro'];
 
 /* Modelo sugerido. Sequência do escritório: mede e instala marmoraria, depois mede e instala marcenaria.
@@ -312,7 +313,7 @@ const MODELO = [
   {tipo:'Civil',      item:'Construção', dur:10, deps:[[0,'TI',0]]},
   {tipo:'Civil',      item:'Hidráulica', dur:8, deps:[[1,'II',3]]},
   {tipo:'Civil',      item:'Elétrica', dur:10, deps:[[1,'II',3]]},
-  {tipo:'Civil',      item:'Infra e condensadora ar condicionado', dur:5, deps:[[1,'II',3]]},
+  {tipo:'Climatização', item:'Infra e condensadora ar condicionado', dur:5, deps:[[1,'II',3]]},
   {tipo:'Civil',      item:'Impermeabilização de piso e paredes', dur:5, deps:[[2,'TI',0],[1,'TI',0]]},
   {tipo:'Civil',      item:'Revestimentos de piso', dur:10, deps:[[5,'TI',3],[3,'TI',0]]},
   {tipo:'Civil',      item:'Revestimentos de parede', dur:10, deps:[[6,'II',2]]},
@@ -457,19 +458,20 @@ function calcularCronograma(lista){
     if(est[t.id] === 'ok') return;
     if(est[t.id] === 'vis'){ R.ciclos.add(t.id); return; }
     est[t.id] = 'vis';
+    const na = !!t.nao_aplica;
     let s = 0;
-    if(t.inicio_fixo) s = Math.max(s, idxDaData(deISO(t.inicio_fixo)));
+    if(t.inicio_fixo && !na) s = Math.max(s, idxDaData(deISO(t.inicio_fixo)));
     (t.deps || []).forEach(d => {
       const p = byId[d.id]; if(!p || p.id === t.id) return;
       ida(p);
       const cp = R.t[p.id];
       if(!cp){ R.ciclos.add(t.id); return; }
-      const f = parseInt(d.folga,10) || 0;
+      const f = (na || p.nao_aplica) ? 0 : (parseInt(d.folga,10) || 0);
       s = Math.max(s, (d.tipo === 'II' ? cp.es : cp.ef) + f);
     });
     s = Math.max(0, s);
-    const dur = Math.max(0, parseInt(t.duracao,10) || 0);
-    R.t[t.id] = { es:s, ef:s+dur, dur:dur };
+    const dur = na ? 0 : Math.max(0, parseInt(t.duracao,10) || 0);
+    R.t[t.id] = { es:s, ef:s+dur, dur:dur, na:na };
     est[t.id] = 'ok';
   }
   lista.forEach(ida);
@@ -488,7 +490,7 @@ function calcularCronograma(lista){
     vis[t.id] = true;
     let lf = R.fimIdx, lsIni = Infinity;
     (suc[t.id] || []).forEach(({q,d}) => {
-      const f = parseInt(d.folga,10) || 0;
+      const f = (t.nao_aplica || q.nao_aplica) ? 0 : (parseInt(d.folga,10) || 0);
       const lq = volta(q);
       if(d.tipo === 'II') lsIni = Math.min(lsIni, lq - f);
       else lf = Math.min(lf, lq - f);
@@ -503,12 +505,12 @@ function calcularCronograma(lista){
     c.folgaTotal = volta(t) - c.es;
     const inf = info[t.id] || { lf: R.fimIdx, lsIni: Infinity };
     c.folgaTermino = inf.lf - c.ef;
-    c.critica = c.folgaTotal <= 0;
+    c.critica = !c.na && c.folgaTotal <= 0;
     c.inicioCritico = c.critica && c.folgaTermino > 0;
     c.ciclo = R.ciclos.has(t.id);
     c.inicio = diaDoIdx(c.es);
     c.fim = c.dur > 0 ? diaDoIdx(c.ef - 1) : c.inicio;
-    if(!fim || c.fim > fim) fim = c.fim;
+    if(!c.na && (!fim || c.fim > fim)) fim = c.fim;
   });
   R.fim = fim;
   return R;
@@ -700,7 +702,21 @@ function dependeFornecedor(t){
   return /^instala/i.test(chaveNome(t.item)) && ['Marcenaria','Marmoraria','Vidraçaria','Decor'].includes(t.tipo);
 }
 function prazoConfirmado(t){ return !!(t.fornecedor && t.fornecedor.confirmado); }
-function pendenteFornecedor(t){ return dependeFornecedor(t) && !prazoConfirmado(t); }
+function pendenteFornecedor(t){ return !t.nao_aplica && dependeFornecedor(t) && !prazoConfirmado(t); }
+/* Troca as dependências que apontam para etapas "pulando" (excluídas ou que não se aplicam)
+   pelas dependências dessas etapas — assim a sequência não se rompe. */
+function depsPulando(deps, pular, byId, vistos){
+  vistos = vistos || new Set();
+  const out = {};
+  (deps || []).forEach(d => {
+    const p = byId[d.id]; if(!p) return;
+    if(pular(p)){
+      if(vistos.has(p.id)) return; vistos.add(p.id);
+      depsPulando(p.deps, pular, byId, vistos).forEach(x => { if(!out[x.id] || (x.folga||0) > (out[x.id].folga||0)) out[x.id] = x; });
+    } else if(!out[d.id] || (d.folga||0) > (out[d.id].folga||0)) out[d.id] = d;
+  });
+  return Object.values(out);
+}
 /* Até quando confirmar: antes de começar a etapa anterior (ex.: a medição), senão a data vira chute */
 function limiteConfirmacao(t){
   const byId = {}; tarefas.forEach(x => byId[x.id] = x);
@@ -709,10 +725,15 @@ function limiteConfirmacao(t){
   return lim;
 }
 function urgenciaFornecedor(t){ const l = limiteConfirmacao(t); return l ? diasCorridos(hoje(), l) : null; }
-function semFornecedor(o){ if(Array.isArray(o)) return o.map(semFornecedor); const x = Object.assign({}, o); delete x.fornecedor; return x; }
-async function gravarComFallback(montar){ // tenta com a coluna fornecedor; se o banco ainda não tiver, grava sem
+function semFornecedor(o){ if(Array.isArray(o)) return o.map(semFornecedor); const x = Object.assign({}, o); if(semColunaFornecedor || !semColunaNA) delete x.fornecedor; if(semColunaNA) delete x.nao_aplica; return x; }
+let semColunaNA = false;
+async function gravarComFallback(montar){ // tenta com as colunas novas; se o banco ainda não tiver, grava sem
   let r = await montar(true);
-  if(r.error && /fornecedor/i.test(r.error.message)){ semColunaFornecedor = true; r = await montar(false); }
+  if(r.error && /fornecedor|nao_aplica/i.test(r.error.message)){
+    if(/fornecedor/i.test(r.error.message)) semColunaFornecedor = true;
+    if(/nao_aplica/i.test(r.error.message)) semColunaNA = true;
+    r = await montar(false);
+  }
   return r;
 }
 function cidadeObra(){ return config.cidade || adivinharCidade(obra.cidade) || ''; }
@@ -770,14 +791,15 @@ function htmlResumo(){
   const pm = mapaPct(), ref = hoje();
   let atrasadas = 0, criticas = 0;
   tarefas.forEach(t => {
-    const c = calc.t[t.id]; if(!c) return;
+    const c = calc.t[t.id]; if(!c || c.na) return;
     const p = pm[chaveNome(t.item)];
     if(situacao(c, p ? p.pct : 0, ref) === 'atrasada') atrasadas++;
     if(c.critica) criticas++;
   });
   let h = '<div class="kpis">';
   h += kpi('Início da obra', br(deISO(config.data_inicio)), config.sabado ? 'trabalha sábado' : 'seg a sex');
-  h += kpi('Término calculado', br(calc.fim), tarefas.length+' etapas');
+  const nNA = tarefas.filter(t => t.nao_aplica).length;
+  h += kpi('Término calculado', br(calc.fim), (tarefas.length - nNA)+' etapas'+(nNA ? ' · '+nNA+' não se aplicam' : ''));
   if(baseline){
     const bFim = deISO(baseline.snapshot && baseline.snapshot.termino);
     const d = difUteis(bFim, calc.fim);
@@ -886,6 +908,10 @@ function htmlLista(){
     const s = situacao(c, p ? p.pct : 0, ref);
     const b = baseline && baseline.snapshot && baseline.snapshot.tarefas ? baseline.snapshot.tarefas[t.id] : null;
     const desv = b ? difUteis(deISO(b.fim), c.fim) : null;
+    if(c.na){
+      h += '<tr style="opacity:.5;" onclick="abrirEditor(\''+t.id+'\')"><td class="num">'+nums[t.id]+'</td><td><div class="t-nome"><s>'+esc(t.item)+'</s></div><div class="t-tipo">'+esc(t.tipo||'')+' · não se aplica nesta obra</div></td><td>—</td><td class="deps">'+depsTexto(t, nums)+'</td><td>—</td><td>—</td><td>—</td><td>—</td><td>n/a</td><td><span class="badge s-futura">Não se aplica</span></td></tr>';
+      return;
+    }
     h += '<tr class="'+(c.critica?'critica':'')+'" onclick="abrirEditor(\''+t.id+'\')">' +
       '<td class="num">'+nums[t.id]+'</td>' +
       '<td><div class="t-nome">'+esc(t.item)+(t.inicio_fixo?' <span title="Não começa antes de '+br(deISO(t.inicio_fixo))+'">📌</span>':'')+(c.ciclo?' <span class="crit" title="Dependência circular">⚠</span>':'')+'</div>' +
@@ -907,7 +933,7 @@ function htmlLista(){
 }
 
 function htmlGantt(){
-  const lista = ordenadas().filter(t => calc.t[t.id]);
+  const lista = ordenadas().filter(t => calc.t[t.id] && !calc.t[t.id].na);
   if(!lista.length) return '';
   const nums = numeros(), pm = mapaPct(), ref = hoje();
   const snap = baseline && baseline.snapshot && baseline.snapshot.tarefas ? baseline.snapshot.tarefas : {};
@@ -975,6 +1001,7 @@ function detalheLog(r){
     if(JSON.stringify(a.deps||[]) !== JSON.stringify(d.deps||[])) partes.push('Dependências: '+esc(depsNomes(a.deps))+' → '+esc(depsNomes(d.deps)));
     if((a.inicio_fixo||null) !== (d.inicio_fixo||null)) partes.push('Não antes de: '+br(deISO(a.inicio_fixo))+' → '+br(deISO(d.inicio_fixo)));
     if(a.tipo !== d.tipo) partes.push('Categoria: '+esc(a.tipo)+' → '+esc(d.tipo));
+    if(!!a.nao_aplica !== !!d.nao_aplica) partes.push(d.nao_aplica ? 'Marcada como NÃO SE APLICA nesta obra' : 'Voltou a se aplicar nesta obra');
     const fa = a.fornecedor || {}, fd = d.fornecedor || {};
     if(JSON.stringify(fa) !== JSON.stringify(fd)){
       const txt = f => !f.depende ? 'não depende de fornecedor' : (f.confirmado ? 'prazo confirmado' : 'prazo a confirmar') + (f.nome ? ' ('+esc(f.nome)+')' : '');
@@ -1111,6 +1138,7 @@ function abrirEditor(id){
   _edit = { id: id, deps: t ? JSON.parse(JSON.stringify(t.deps || [])) : [] };
   document.getElementById('edTitulo').textContent = t ? 'Editar etapa #'+numeros()[id] : 'Nova etapa';
   document.getElementById('edItem').value = t ? t.item : '';
+  document.getElementById('edNA').checked = !!(t && t.nao_aplica);
   const tipo = t ? (t.tipo || 'Civil') : 'Civil';
   const tipos = TIPOS.includes(tipo) ? TIPOS : TIPOS.concat([tipo]);
   document.getElementById('edTipo').innerHTML = tipos.map(x => '<option'+(x===tipo?' selected':'')+'>'+esc(x)+'</option>').join('');
@@ -1181,13 +1209,14 @@ async function salvarEditor(){
   const t = _edit.id ? tarefas.find(x => x.id === _edit.id) : null;
   const fornecedor = lerFornecedorEditor(t && t.fornecedor);
   if(fornecedor.confirmado && !fornecedor.nome) return alert('Para marcar o prazo como confirmado, informe qual fornecedor confirmou.');
-  const novo = { item, tipo, duracao, inicio_fixo, deps, fornecedor };
+  const nao_aplica = document.getElementById('edNA').checked;
+  const novo = { item, tipo, duracao, inicio_fixo, deps, fornecedor, nao_aplica };
   const fimAntes = calc.fim;
   const btn = document.getElementById('edSalvar');
 
   if(t){
-    const antes = { item:t.item, tipo:t.tipo, duracao:t.duracao, inicio_fixo:t.inicio_fixo||null, deps:t.deps||[], fornecedor: t.fornecedor || { depende: dependeFornecedor(t) } };
-    const mudouData = antes.duracao !== duracao || antes.inicio_fixo !== inicio_fixo || JSON.stringify(antes.deps) !== JSON.stringify(deps);
+    const antes = { item:t.item, tipo:t.tipo, duracao:t.duracao, inicio_fixo:t.inicio_fixo||null, deps:t.deps||[], fornecedor: t.fornecedor || { depende: dependeFornecedor(t) }, nao_aplica: !!t.nao_aplica };
+    const mudouData = antes.duracao !== duracao || antes.inicio_fixo !== inicio_fixo || JSON.stringify(antes.deps) !== JSON.stringify(deps) || antes.nao_aplica !== nao_aplica;
     const mudouAlgo = mudouData || antes.item !== item || antes.tipo !== tipo || JSON.stringify(antes.fornecedor) !== JSON.stringify(fornecedor);
     if(!mudouAlgo) return fecharEditor();
     let motivo = null;
@@ -1219,7 +1248,8 @@ async function salvarEditor(){
   }
   fecharEditor();
   renderObra();
-  if(semColunaFornecedor && fornecedor.depende) alert('A etapa foi salva, mas a informação do fornecedor NÃO foi guardada: falta rodar no Supabase esta linha:\n\nalter table public.cronograma_tarefas add column if not exists fornecedor jsonb;');
+  if(semColunaNA && nao_aplica) alert('A etapa foi salva, mas "não se aplica" NÃO foi guardado: falta rodar no Supabase:\n\nalter table public.cronograma_tarefas add column if not exists nao_aplica boolean not null default false;');
+  else if(semColunaFornecedor && fornecedor.depende) alert('A etapa foi salva, mas a informação do fornecedor NÃO foi guardada: falta rodar no Supabase esta linha:\n\nalter table public.cronograma_tarefas add column if not exists fornecedor jsonb;');
 }
 
 async function excluirTarefa(){
@@ -1227,12 +1257,14 @@ async function excluirTarefa(){
   const t = tarefas.find(x => x.id === _edit.id);
   if(!t) return;
   const dependentes = tarefas.filter(x => (x.deps || []).some(d => d.id === t.id));
-  if(!confirm('Excluir "'+t.item+'"?' + (dependentes.length ? '\n\n'+dependentes.length+' etapa(s) dependem dela e vão perder essa dependência: '+dependentes.map(x => x.item).join(', ') : ''))) return;
+  const antecessoras = (t.deps || []).map(d => nomeTarefa(d.id)).filter(n => n !== '(etapa removida)');
+  if(!confirm('Excluir "'+t.item+'"?' + (dependentes.length ? '\n\nQuem dependia dela ('+dependentes.map(x => x.item).join(', ')+') passa a depender de quem vinha antes: '+(antecessoras.join(', ') || 'início da obra')+'. Assim a sequência não se rompe.' : '') + '\n\nSe a etapa só não acontece NESTA obra, prefira marcar "Não se aplica": ela some do Gantt e fica registrada.')) return;
   let motivo = null;
   if(baseline){ motivo = await pedirMotivo(TXT_MOTIVO); if(!motivo) return; }
   const fimAntes = calc.fim;
+  const byIdEx = {}; tarefas.forEach(z => byIdEx[z.id] = z);
   for(const x of dependentes){
-    const novasDeps = x.deps.filter(d => d.id !== t.id);
+    const novasDeps = depsPulando(x.deps, p => p.id === t.id, byIdEx).filter(d => d.id !== x.id);
     const { error } = await sb.from('cronograma_tarefas').update({ deps: novasDeps, rev:(x.rev||1)+1, updated_at: new Date().toISOString(), updated_by: usuarioNome }).eq('id', x.id);
     if(error) return alert('Não consegui ajustar as dependências de "'+x.item+'": '+error.message);
     x.deps = novasDeps; x.rev = (x.rev||1)+1;
@@ -1301,11 +1333,12 @@ async function salvarComoModelo(){
   if(!ehSuzana()) return alert('Só a Suzana salva modelos.');
   if(!tarefas.length) return;
   if(calc.ciclos.size) return alert('Corrija as dependências em círculo antes de salvar como modelo.');
-  const lista = ordenadas();
+  const byIdM = {}; tarefas.forEach(z => byIdM[z.id] = z);
+  const lista = ordenadas().filter(t => !t.nao_aplica);
   const idx = {}; lista.forEach((t,i) => idx[t.id] = i);
   const etapas = lista.map(t => ({
     tipo: t.tipo || 'Civil', item: t.item, dur: parseInt(t.duracao,10) || 0,
-    deps: (t.deps || []).filter(d => idx[d.id] !== undefined).map(d => [idx[d.id], d.tipo === 'II' ? 'II' : 'TI', parseInt(d.folga,10) || 0]),
+    deps: depsPulando(t.deps, p => !!p.nao_aplica, byIdM).filter(d => idx[d.id] !== undefined).map(d => [idx[d.id], d.tipo === 'II' ? 'II' : 'TI', parseInt(d.folga,10) || 0]),
     forn: dependeFornecedor(t)
   }));
   const nomes = modelos.map(m => m.nome);
@@ -1313,7 +1346,7 @@ async function salvarComoModelo(){
   if(!nome) return;
   const fixos = lista.filter(t => t.inicio_fixo).length;
   const existe = nomes.includes(nome);
-  if(!confirm((existe ? 'Substituir o modelo "'+nome+'"' : 'Criar o modelo "'+nome+'"') + ' com as '+etapas.length+' etapas deste cronograma?\n\nVão para o modelo: etapas, categorias, durações, dependências, folgas e quais etapas dependem de fornecedor.\nNão vão: datas, feriados, fornecedores escolhidos'+(fixos ? ' e as '+fixos+' datas travadas (📌)' : '')+'.' + (existe ? '\n\nObras que já usaram o modelo não mudam.' : ''))) return;
+  if(!confirm((existe ? 'Substituir o modelo "'+nome+'"' : 'Criar o modelo "'+nome+'"') + ' com as '+etapas.length+' etapas deste cronograma?\n\nVão para o modelo: etapas, categorias, durações, dependências, folgas e quais etapas dependem de fornecedor.\nNão vão: datas, feriados, fornecedores escolhidos'+(fixos ? ', as '+fixos+' datas travadas (📌)' : '')+(tarefas.length - lista.length ? ' e as '+(tarefas.length - lista.length)+' etapas marcadas como "não se aplica"' : '')+'.' + (existe ? '\n\nObras que já usaram o modelo não mudam.' : ''))) return;
   const { error } = await sb.from('cronograma_modelos').upsert({ nome, etapas, criado_por: usuarioNome, atualizado_em: new Date().toISOString() }, { onConflict: 'nome' });
   if(error){
     if(tabelaFaltando(error) || /cronograma_modelos/.test(error.message)) return alert('Falta criar a tabela de modelos no Supabase (bloco "Modelos de cronograma" do arquivo cronograma_supabase.sql).');
@@ -1459,7 +1492,7 @@ async function congelarBase(){
     if(!motivo) return;
   } else if(!confirm('Congelar o cronograma inicial?\n\nAs datas de hoje viram o PRAZO APROVADO com o cliente (término '+br(calc.fim)+'). A partir daí, toda mudança de data pede motivo e fica registrada.\n\nFaça isso depois de revisar o cronograma e, de preferência, depois de o cliente aprovar as datas.')) return;
   const snap = { termino: iso(calc.fim), inicio_obra: config.data_inicio, tarefas: {}, prazos_nao_confirmados: tarefas.filter(pendenteFornecedor).map(t => t.item) };
-  tarefas.forEach(t => { const c = calc.t[t.id]; snap.tarefas[t.id] = { item: t.item, inicio: iso(c.inicio), fim: iso(c.fim) }; });
+  tarefas.forEach(t => { const c = calc.t[t.id]; if(c.na) return; snap.tarefas[t.id] = { item: t.item, inicio: iso(c.inicio), fim: iso(c.fim) }; });
   const versao = (baseline ? baseline.versao : 0) + 1;
   const { data, error } = await sb.from('cronograma_baselines').insert({
     obra_id: obra.id, versao, snapshot: snap, motivo: motivo ? motivo.cat+' — '+motivo.texto : null, criado_por: usuarioNome
@@ -1512,18 +1545,23 @@ async function montarPrazoRelatorio(){
 function relatorioDesatualizado(){
   if(!tarefas.length || calc.ciclos.size) return false;
   const p = planoEnvio(etapasDoRascunho(rasc));
-  if(p.alteradas.length || p.novas.length) return true;
+  if(p.alteradas.length || p.novas.length || p.statusNA.length) return true;
   const pr = rasc && rasc.dados && rasc.dados.prazo;
   return !pr || pr.previsao !== iso(calc.fim) || (baseline && pr.vigente !== (baseline.snapshot && baseline.snapshot.termino));
 }
 function planoEnvio(etapasRel){
   const porChave = {};
   etapasRel.forEach((e,i) => { const k = chaveNome(e.item); if(k && porChave[k] === undefined) porChave[k] = i; });
-  const alteradas = [], novas = [], usados = new Set();
+  const alteradas = [], novas = [], usados = new Set(), statusNA = [];
   tarefas.slice().sort((a,b) => calc.t[a.id].es - calc.t[b.id].es).forEach(t => {
     const c = calc.t[t.id];
     const ini = br(c.inicio), fim = br(c.fim); // DD/MM/AA: o ano evita embaralhar obras que viram o ano
     const i = porChave[chaveNome(t.item)];
+    if(c.na){
+      if(i !== undefined){ usados.add(i); if(etapasRel[i].status !== 'na') statusNA.push({ i, item: etapasRel[i].item, na: true }); }
+      return; // não cria etapa nova no relatório para o que não se aplica
+    }
+    if(i !== undefined && etapasRel[i].status === 'na') statusNA.push({ i, item: etapasRel[i].item, na: false });
     if(i !== undefined){
       usados.add(i);
       const e = etapasRel[i];
@@ -1531,7 +1569,7 @@ function planoEnvio(etapasRel){
     } else novas.push({ tipo: t.tipo || 'Extra', item: t.item, ini, fim });
   });
   const soRelatorio = etapasRel.filter((e,i) => !usados.has(i) && e.status !== 'na').map(e => e.item);
-  return { alteradas, novas, soRelatorio };
+  return { alteradas, novas, soRelatorio, statusNA };
 }
 async function buscarRascunho(){
   const { data, error } = await sb.from('relatorios').select('id,dados,updated_at,updated_by')
@@ -1557,13 +1595,14 @@ async function prepararEnvio(){
     h += '<div class="erro-box">⚠ <strong>'+esc(r.updated_by)+'</strong> mexeu no relatório desta obra há '+minutos+' min. Se ainda estiver com ele aberto, o salvamento automático pode sobrescrever estas datas. Peça para fechar ou recarregar a página antes de enviar.</div>';
   }
   const prazoDesatualizado = relatorioDesatualizado();
-  if(!plano.alteradas.length && !plano.novas.length && !prazoDesatualizado){
+  if(!plano.alteradas.length && !plano.novas.length && !plano.statusNA.length && !prazoDesatualizado){
     h += '<div class="info-box">O relatório já está igual ao cronograma. Nada a enviar.</div>';
     document.getElementById('btnConfirmarEnvio').style.display = 'none';
   } else {
     if(!plano.alteradas.length && !plano.novas.length) h += '<div class="info-box">As datas das etapas já estão iguais; vai atualizar o bloco "Prazo da obra" do relatório.</div>';
     document.getElementById('btnConfirmarEnvio').style.display = 'inline-block';
     if(plano.alteradas.length) h += '<div class="card-label">Datas que vão mudar ('+plano.alteradas.length+')</div><div class="lista-envio">' + plano.alteradas.map(a => '<div><strong>'+esc(a.item)+'</strong>: '+esc(a.antes)+' → '+a.ini+' a '+a.fim+'</div>').join('') + '</div>';
+    if(plano.statusNA.length) h += '<div class="card-label">Não se aplica ('+plano.statusNA.length+')</div><div class="lista-envio">' + plano.statusNA.map(s => '<div><strong>'+esc(s.item)+'</strong>: '+(s.na ? 'passa a "não se aplica"' : 'volta a se aplicar')+'</div>').join('') + '</div>';
     if(plano.novas.length) h += '<div class="card-label">Etapas novas no relatório ('+plano.novas.length+')</div><div class="lista-envio">' + plano.novas.map(a => '<div><strong>'+esc(a.item)+'</strong>: '+a.ini+' a '+a.fim+'</div>').join('') + '</div>';
   }
   if(plano.soRelatorio.length) h += '<div class="alert-box">Estas etapas existem no relatório mas não no cronograma, e ficam como estão: '+plano.soRelatorio.map(esc).join(', ')+'. Se forem a mesma etapa com outro nome, use o mesmo nome nos dois lados.</div>';
@@ -1580,6 +1619,7 @@ async function confirmarEnvio(){
     const etapasRel = etapasDoRascunho(r);
     const plano = planoEnvio(etapasRel);
     plano.alteradas.forEach(a => { etapasRel[a.i].inicio = a.ini; etapasRel[a.i].fim = a.fim; });
+    plano.statusNA.forEach(s => { etapasRel[s.i].status = s.na ? 'na' : ''; });
     plano.novas.forEach(n => etapasRel.push({ tipo: n.tipo, item: n.item, inicio: n.ini, fim: n.fim, pct:0, status:'', obs:'', proximo:'', manual:true }));
     const etapasFinal = ordenarEtapasRelatorio(etapasRel);
     const prazo = await montarPrazoRelatorio();
