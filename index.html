@@ -237,6 +237,7 @@ textarea{resize:vertical;min-height:72px;}
 <div class="container">
   <div class="sec-title" style="margin-bottom:6px;">Obras em andamento</div>
   <div class="sec-sub">Selecione a obra para gerar o relatório desta semana.</div>
+  <div style="margin-bottom:18px;"><a href="cronograma.html" class="btn-secondary" style="display:inline-block;text-decoration:none;">📅 Cronogramas das obras</a></div>
   <div class="sel-grid" id="selGrid"></div>
 </div>
 </div>
@@ -321,6 +322,10 @@ textarea{resize:vertical;min-height:72px;}
     <button class="btn-primary" style="padding:8px 16px;" onclick="document.getElementById('excelInput').click()">Importar Excel</button>
   </div>
   <div id="excelImportStatus"></div>
+  <div class="save-bar">
+    <span>📅 Cronograma amarrado desta obra (datas, dependências, linha de base)</span>
+    <button class="btn-primary" style="padding:8px 16px;" onclick="abrirCronograma()">Abrir cronograma</button>
+  </div>
   <div class="card">
     <div class="row-2">
       <div><label>Cliente</label><input type="text" id="cliente" placeholder="Ex: Lídia e Douglas"></div>
@@ -593,6 +598,7 @@ let _previstos = [];
 let _pendencias = [];
 let _imprevistos = [];
 let _observacoes = [];
+let _prazo = null; // bloco de prazo enviado pelo cronograma (cronograma inicial x previsão atual)
 let mediaRecorder = null, audioChunks = [], isRecording = false;
 
 /* ── ESTADO DO SALVAMENTO NO BANCO ────────────────────────────────── */
@@ -748,6 +754,7 @@ async function abrirObra(key) {
   _pendencias = [];
   _imprevistos = [];
   _observacoes = [];
+  _prazo = null;
   renderEtapas();
   renderListas();
   document.getElementById('ambFotosList').innerHTML = '';
@@ -892,7 +899,8 @@ function montarDados() {
     previstos: _previstos,
     pendencias: _pendencias,
     imprevistos: _imprevistos,
-    observacoes: _observacoes
+    observacoes: _observacoes,
+    prazo: _prazo
   };
 }
 
@@ -963,12 +971,16 @@ async function aprovarSemana(btn) {
   });
 }
 
-/* Chamado ao aprovar: prepara o rascunho compartilhado para a semana seguinte.
+/* Chamado ao aprovar E ao baixar o .json (os dois jeitos de "fechar a semana"):
+   prepara o rascunho compartilhado para a semana seguinte.
    Mantém o que é estrutural (categoria, datas, %, pendências não resolvidas) e limpa
    o que é só desta semana (status, observações, próximos passos, listas, fotos) —
-   assim a próxima pessoa que abrir a obra NUNCA encontra a semana já aprovada "reaberta". */
+   assim a próxima pessoa que abrir a obra NUNCA encontra a semana já aprovada "reaberta",
+   e as pendências em aberto já vêm preenchidas, sem precisar reimportar o .json à mão. */
 async function iniciarProximaSemana() {
-  if(!obraAtual || !sb || !rascunhoDbId) return;
+  if(!obraAtual || !sb) return;
+  if(!rascunhoDbId) { await saveDraftDB(); } // garante que existe uma linha de rascunho para atualizar
+  if(!rascunhoDbId) return;
   const etapasProximaSemana = etapas.filter(Boolean).map(e => ({
     tipo: e.tipo, item: e.item, inicio: e.inicio, fim: e.fim, pct: e.pct,
     status: e.status === 'na' ? 'na' : '', obs: '', proximo: '',
@@ -982,23 +994,16 @@ async function iniciarProximaSemana() {
     etapas: etapasProximaSemana, ambFotos: [], qtdFotos: 0,
     realizacoes: [], previstos: [],
     pendencias: _pendencias.filter(x => x !== null && x !== ''), // pendências não resolvidas seguem para a próxima semana
-    imprevistos: [], observacoes: []
+    imprevistos: [], observacoes: [],
+    prazo: _prazo ? Object.assign({}, _prazo, { alteracoes: [] }) : null // prazo segue; alterações já foram informadas
   };
   try {
     await sb.from('relatorios')
       .update({ dados: dadosProximaSemana, semana: '', updated_at: new Date().toISOString(), updated_by: usuarioNome })
       .eq('id', rascunhoDbId);
-    _ultimoDadosSalvos = '';
-  } catch(e) {}
-}
-
-/* Após exportar a semana, o rascunho da obra recomeça vazio (a linha é reaproveitada) */
-async function esvaziarRascunhoDB() {
-  if(!sb || !rascunhoDbId) return;
-  try {
-    await sb.from('relatorios')
-      .update({ dados: { vazio: true }, semana: '', updated_at: new Date().toISOString(), updated_by: usuarioNome })
-      .eq('id', rascunhoDbId);
+    // A tela também passa para a próxima semana. Antes, o salvamento automático (a cada 20s)
+    // regravava a semana aprovada por cima do rascunho recém-limpo.
+    restaurarRascunho(dadosProximaSemana);
     _ultimoDadosSalvos = '';
   } catch(e) {}
 }
@@ -1019,7 +1024,8 @@ function saveDraft() {
     previstos: _previstos,
     pendencias: _pendencias,
     imprevistos: _imprevistos,
-    observacoes: _observacoes
+    observacoes: _observacoes,
+    prazo: _prazo
   };
   try {
     localStorage.setItem('rascunho-' + obraAtual, JSON.stringify(d));
@@ -1045,6 +1051,7 @@ function restaurarRascunho(d) {
   _pendencias = d.pendencias || [];
   _imprevistos = d.imprevistos || [];
   _observacoes = d.observacoes || [];
+  _prazo = d.prazo || null;
   renderEtapas();
   renderListas();
   // reconstrói ambientes e fotos
@@ -1073,6 +1080,18 @@ function goTo(n) {
   });
   window.scrollTo(0,0);
   saveDraft();
+}
+
+/* ── CRONOGRAMA (página separada) ─────────────────────────────────── */
+/* Salva o rascunho no banco ANTES de sair, para o cronograma ler o % atualizado
+   e para nada ficar só na memória desta aba. Abre na mesma aba (evita duas abas
+   do relatório abertas sobrescrevendo as datas enviadas pelo cronograma). */
+async function abrirCronograma() {
+  if(!obraAtual) return;
+  saveDraft();
+  for(let i = 0; i < 50 && _salvandoDB; i++) await new Promise(r => setTimeout(r, 100));
+  await saveDraftDB();
+  location.href = 'cronograma.html?obra=' + encodeURIComponent(obraAtual);
 }
 
 /* ── IMPORTAR MACROCRONOGRAMA (Excel) ─────────────────────────────── */
@@ -1260,16 +1279,18 @@ function exportJSON() {
     previstos: limpa(_previstos),
     pendencias: limpa(_pendencias),
     imprevistos: limpa(_imprevistos),
-    observacoes: limpa(_observacoes)
+    observacoes: limpa(_observacoes),
+    prazo: _prazo
   };
   const nomeSaida = (obraInfo.label||'obra').toLowerCase().replace(/\s+/g,'_') + '_' + (state.semana.replace(/\s/g,'_')||'semana') + '.json';
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([JSON.stringify(state,null,2)],{type:'application/json'}));
   a.download = nomeSaida;
   a.click();
-  // Semana exportada com segurança: limpa o rascunho desta obra
+  // Semana exportada: rascunho local encerrado; rascunho compartilhado passa para a
+  // próxima semana já com cronograma, %, e pendências em aberto preenchidos
   try { localStorage.removeItem('rascunho-' + obraAtual); } catch(e) {}
-  esvaziarRascunhoDB();
+  iniciarProximaSemana();
 }
 
 let _jsonImportadoPendente = null;
@@ -1390,7 +1411,7 @@ function appendEtapaBlock(idx, list) {
   const pctBadge = (e.pct > 0 && e.status !== 'na') ? '<span style="font-size:11px;font-weight:700;color:'+(sColor[e.status]||'var(--brown-light)')+';">'+e.pct+'%</span>' : '';
   const ocultaBadge = e.oculta ? '<span class="badge-oculta" title="O texto/observações não aparecem no relatório — mas data e % continuam no cronograma">🚫 Texto oculto</span>' : '';
   const nomeEsc = (e.item||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
-  const TIPOS = ['Civil','Marcenaria','Marmoraria','Vidraçaria','Churrasqueira','Decor','Extra'];
+  const TIPOS = ['Escritório','Cliente','Civil','Climatização','Marcenaria','Marmoraria','Vidraçaria','Churrasqueira','Decor','Extra'];
   if(e.tipo && !TIPOS.includes(e.tipo)) TIPOS.push(e.tipo);
   const tipoOpts = TIPOS.map(t => '<option'+(t===e.tipo?' selected':'')+'>'+t+'</option>').join('');
   div.innerHTML =
@@ -1469,13 +1490,24 @@ function moverEtapa(idx, dir) {
   saveDraft();
 }
 
-/* Converte "DD/MM" em número comparável (MM*100+DD). Retorna null se vazio/inválido. */
+/* Converte "DD/MM" ou "DD/MM/AA" em número comparável (AAAAMMDD). Retorna null se vazio/inválido.
+   Sem ano: usa o ano que deixa a data mais perto de hoje (obra que vira o ano não embaralha). */
 function parseDataBR(s) {
-  const m = String(s||'').trim().match(/^(\d{1,2})\/(\d{1,2})/);
+  const m = String(s||'').trim().match(/^(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?/);
   if(!m) return null;
   const dia = parseInt(m[1],10), mes = parseInt(m[2],10);
   if(!dia || !mes || mes<1 || mes>12 || dia<1 || dia>31) return null;
-  return mes*100 + dia;
+  let ano;
+  if(m[3]) { ano = parseInt(m[3],10); if(ano < 100) ano += 2000; }
+  else {
+    const h = new Date(); let melhor = null;
+    [h.getFullYear()-1, h.getFullYear(), h.getFullYear()+1].forEach(y => {
+      const d = new Date(y, mes-1, dia);
+      if(melhor === null || Math.abs(d - h) < Math.abs(melhor - h)) melhor = d;
+    });
+    ano = melhor.getFullYear();
+  }
+  return ano*10000 + mes*100 + dia;
 }
 
 /* Compara duas etapas: primeiro por data de Início, depois por data de Fim (desempate).
@@ -1973,6 +2005,29 @@ function buildExport() {
     return h + '</ul>';
   };
 
+  // ── Prazo da obra (vem do cronograma): contratual x vigente x previsão atual ──
+  if(_prazo && _prazo.previsao) {
+    const dt = s => { const m = String(s||'').match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? m[3]+'/'+m[2]+'/'+m[1].slice(2) : '—'; };
+    const caixa = (rot, val, sub, cor) => '<div style="flex:1;min-width:130px;background:var(--off-white);border-radius:4px;padding:10px 12px;print-color-adjust:exact;-webkit-print-color-adjust:exact;"><div style="font-size:9px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--brown-light);margin-bottom:3px;">'+rot+'</div><div style="font-size:16px;font-weight:600;color:'+(cor||'var(--brown-dark)')+';">'+val+'</div>'+(sub?'<div style="font-size:10px;color:var(--brown-mid);margin-top:2px;">'+sub+'</div>':'')+'</div>';
+    const d = _prazo.desvio;
+    let pz = '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px;">';
+    if(_prazo.contratual) pz += caixa('Cronograma inicial', dt(_prazo.contratual), 'aprovado pelo cliente');
+    if(_prazo.vigente && _prazo.vigente !== _prazo.contratual) pz += caixa('Cronograma revisado', dt(_prazo.vigente), 'aditivo aprovado');
+    pz += caixa('Previsão atual', dt(_prazo.previsao), 'atualizada em '+dt(_prazo.atualizado_em));
+    if(typeof d === 'number' && (_prazo.contratual || _prazo.vigente)) pz += caixa('Diferença', d > 0 ? '+'+d+' dias úteis' : d < 0 ? d+' dias úteis' : 'No prazo', d > 0 ? 'além do cronograma '+(_prazo.vigente && _prazo.vigente !== _prazo.contratual ? 'revisado' : 'inicial') : (d < 0 ? 'adiantada' : ''), d > 0 ? 'var(--red-alert)' : d < 0 ? 'var(--green-ok)' : 'var(--green-ok)');
+    pz += '</div>';
+    const alt = (_prazo.alteracoes || []).filter(Boolean);
+    if(alt.length) {
+      pz += '<div style="font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--brown-mid);margin:4px 0 6px;">Alterações de prazo desde o último relatório</div><ul style="list-style:none;margin-bottom:6px;">';
+      alt.forEach(a => {
+        const imp = typeof a.impacto === 'number' ? (a.impacto > 0 ? '+'+a.impacto+' dias úteis no término' : a.impacto+' dias úteis no término') : '';
+        pz += '<li style="font-size:12px;color:var(--brown-mid);padding:3px 0;"><strong style="color:var(--brown-dark);">'+(a.etapa||'')+'</strong> · '+(a.categoria||'')+(imp?' · <span style="color:'+(a.impacto>0?'var(--red-alert)':'var(--green-ok)')+';">'+imp+'</span>':'')+'</li>';
+      });
+      pz += '</ul>';
+    }
+    body += '<h2 style="font-family:Cormorant Garamond,serif;font-size:20px;font-weight:400;color:var(--brown-dark);margin-bottom:12px;padding-bottom:6px;border-bottom:1px solid var(--gray-mid);">Prazo da Obra</h2>' + pz + '<div style="height:16px;"></div>';
+  }
+
   const realExp = _realizacoes.filter(x => x!==null && x!=='');
   const prevExp = _previstos.filter(x => x!==null && x!=='');
   if(realExp.length) {
@@ -2033,11 +2088,17 @@ function buildExport() {
     '<th style="padding:7px 10px;text-align:left;font-weight:600;letter-spacing:.06em;text-transform:uppercase;font-size:10px;color:var(--brown-mid);">Fim</th>' +
     '<th style="padding:7px 10px;text-align:left;font-weight:600;letter-spacing:.06em;text-transform:uppercase;font-size:10px;color:var(--brown-mid);">%</th>' +
     '</tr></thead><tbody>';
+  const orig = (_prazo && _prazo.original) || {};
+  const comOriginal = (e, campo) => {
+    const o = orig[_chaveNomeEtapa(e.item)];
+    const atual = e[campo] || '—';
+    return (o && o[campo] && o[campo] !== e[campo]) ? '<s style="color:var(--brown-light);font-size:10px;">'+o[campo]+'</s> '+atual : atual;
+  };
   et.forEach(e => {
     const ehNA = e.status === 'na';
     const c = ehNA ? 'var(--brown-light)' : e.pct===100?'var(--green-ok)':e.pct>0?'var(--amber)':'var(--brown-mid)';
     const estiloNA = ehNA ? 'opacity:.55;' : '';
-    body += '<tr style="'+estiloNA+'"><td style="padding:7px 10px;border-bottom:1px solid var(--gray-light);">'+e.item+'</td><td style="padding:7px 10px;border-bottom:1px solid var(--gray-light);color:var(--brown-light);">'+e.tipo+'</td><td style="padding:7px 10px;border-bottom:1px solid var(--gray-light);">'+(ehNA?'—':(e.inicio||'—'))+'</td><td style="padding:7px 10px;border-bottom:1px solid var(--gray-light);">'+(ehNA?'—':(e.fim||'—'))+'</td><td style="padding:7px 10px;border-bottom:1px solid var(--gray-light);color:'+c+';font-weight:700;">'+(ehNA?'n/a':e.pct+'%')+'</td></tr>';
+    body += '<tr style="'+estiloNA+'"><td style="padding:7px 10px;border-bottom:1px solid var(--gray-light);">'+e.item+'</td><td style="padding:7px 10px;border-bottom:1px solid var(--gray-light);color:var(--brown-light);">'+e.tipo+'</td><td style="padding:7px 10px;border-bottom:1px solid var(--gray-light);">'+(ehNA?'—':comOriginal(e,'inicio'))+'</td><td style="padding:7px 10px;border-bottom:1px solid var(--gray-light);">'+(ehNA?'—':comOriginal(e,'fim'))+'</td><td style="padding:7px 10px;border-bottom:1px solid var(--gray-light);color:'+c+';font-weight:700;">'+(ehNA?'n/a':e.pct+'%')+'</td></tr>';
   });
   body += '</tbody></table>';
 
@@ -2058,10 +2119,20 @@ function buildExport() {
   document.getElementById('expBody').innerHTML = body;
 }
 
+/* Nome sugerido para o PDF ao salvar: navegador usa o <title> da aba como nome padrão
+   do arquivo na caixa de "Salvar como". Mesmo padrão de obra + período usado no .json. */
+function tituloRelatorio() {
+  const obraInfo = OBRAS_CATALOG[obraAtual] || {};
+  const semana = (document.getElementById('semana').value || '').trim();
+  const partes = [obraInfo.label, semana ? 'Semana ' + semana : ''].filter(Boolean);
+  const titulo = partes.length ? partes.join(' - ') : 'Relatório de Obra - Suzana Bonolo';
+  return titulo.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
 function imprimirRelatorio() {
   const previewHTML = document.getElementById('exportPreview').innerHTML;
   const win = window.open('','_blank');
-  win.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Relatório de Obra – Suzana Bonolo</title><style>' +
+  win.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>'+tituloRelatorio()+'</title><style>' +
     '@import url(\'https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;500&family=Inter:wght@300;400;500;600&display=swap\');' +
     ':root{--salmon:#E8A090;--salmon-light:#F2C4B8;--salmon-bg:#FBF0ED;--brown-dark:#3D2B2B;--brown-mid:#6B4A4A;--brown-light:#C4A09A;--white:#FFFFFF;--off-white:#FAF8F7;--gray-light:#F0EDEC;--gray-mid:#D5CECE;--green-ok:#5C8A6E;--amber:#C88A3A;--red-alert:#C05050;}' +
     '*{box-sizing:border-box;margin:0;padding:0;}body{font-family:Inter,sans-serif;background:white;}img{max-width:100%;display:block;}' +
