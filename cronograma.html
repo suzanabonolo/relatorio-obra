@@ -1021,7 +1021,7 @@ function detalheLog(r){
   } else if(r.acao === 'salvou_modelo'){
     partes.push('Modelo "'+esc(d.nome||'')+'" · '+(d.etapas||0)+' etapas');
   } else if(r.acao === 'enviou_relatorio'){
-    partes.push((d.alteradas||0)+' datas atualizadas, '+(d.novas||0)+' etapas novas no relatório'+(d.previsao ? ' · previsão enviada: '+br(deISO(d.previsao)) : '')+(d.alteracoes_prazo ? ' · '+d.alteracoes_prazo+' alteração(ões) de prazo informadas' : ''));
+    partes.push((d.alteradas||0)+' datas atualizadas, '+(d.novas||0)+' etapas novas no relatório'+(d.removidas ? ', '+d.removidas+' removidas' : '')+(d.previsao ? ' · previsão enviada: '+br(deISO(d.previsao)) : '')+(d.alteracoes_prazo ? ' · '+d.alteracoes_prazo+' alteração(ões) de prazo informadas' : ''));
   }
   if(a.termino && d.termino && a.termino !== d.termino) partes.push('<strong>Término da obra: '+br(deISO(a.termino))+' → '+br(deISO(d.termino))+'</strong>');
   return partes.join('<br>') || '—';
@@ -1545,7 +1545,7 @@ async function montarPrazoRelatorio(){
 function relatorioDesatualizado(){
   if(!tarefas.length || calc.ciclos.size) return false;
   const p = planoEnvio(etapasDoRascunho(rasc));
-  if(p.alteradas.length || p.novas.length || p.statusNA.length) return true;
+  if(p.alteradas.length || p.novas.length || p.statusNA.length || p.remover.length) return true;
   const pr = rasc && rasc.dados && rasc.dados.prazo;
   return !pr || pr.previsao !== iso(calc.fim) || (baseline && pr.vigente !== (baseline.snapshot && baseline.snapshot.termino));
 }
@@ -1568,8 +1568,13 @@ function planoEnvio(etapasRel){
       if((e.inicio||'') !== ini || (e.fim||'') !== fim) alteradas.push({ i, item: e.item, antes: (e.inicio||'—')+' a '+(e.fim||'—'), ini, fim });
     } else novas.push({ tipo: t.tipo || 'Extra', item: t.item, ini, fim });
   });
-  const soRelatorio = etapasRel.filter((e,i) => !usados.has(i) && e.status !== 'na').map(e => e.item);
-  return { alteradas, novas, soRelatorio, statusNA };
+  /* Etapas que estão no relatório mas não no cronograma: sem nenhum registro, podem sair;
+     com registro (%, status, observação), ficam — nunca apagamos histórico sem a pessoa ver. */
+  const temHistorico = e => (e.pct||0) > 0 || String(e.obs||'').trim() || String(e.proximo||'').trim() || (e.status && e.status !== 'na');
+  const sobras = etapasRel.map((e,i) => ({ e, i })).filter(x => !usados.has(x.i));
+  const remover = sobras.filter(x => !temHistorico(x.e)).map(x => ({ i: x.i, item: x.e.item }));
+  const manter = sobras.filter(x => temHistorico(x.e)).map(x => ({ i: x.i, item: x.e.item, pct: x.e.pct || 0 }));
+  return { alteradas, novas, statusNA, remover, manter };
 }
 async function buscarRascunho(){
   const { data, error } = await sb.from('relatorios').select('id,dados,updated_at,updated_by')
@@ -1595,7 +1600,7 @@ async function prepararEnvio(){
     h += '<div class="erro-box">⚠ <strong>'+esc(r.updated_by)+'</strong> mexeu no relatório desta obra há '+minutos+' min. Se ainda estiver com ele aberto, o salvamento automático pode sobrescrever estas datas. Peça para fechar ou recarregar a página antes de enviar.</div>';
   }
   const prazoDesatualizado = relatorioDesatualizado();
-  if(!plano.alteradas.length && !plano.novas.length && !plano.statusNA.length && !prazoDesatualizado){
+  if(!plano.alteradas.length && !plano.novas.length && !plano.statusNA.length && !plano.remover.length && !prazoDesatualizado){
     h += '<div class="info-box">O relatório já está igual ao cronograma. Nada a enviar.</div>';
     document.getElementById('btnConfirmarEnvio').style.display = 'none';
   } else {
@@ -1605,7 +1610,9 @@ async function prepararEnvio(){
     if(plano.statusNA.length) h += '<div class="card-label">Não se aplica ('+plano.statusNA.length+')</div><div class="lista-envio">' + plano.statusNA.map(s => '<div><strong>'+esc(s.item)+'</strong>: '+(s.na ? 'passa a "não se aplica"' : 'volta a se aplicar')+'</div>').join('') + '</div>';
     if(plano.novas.length) h += '<div class="card-label">Etapas novas no relatório ('+plano.novas.length+')</div><div class="lista-envio">' + plano.novas.map(a => '<div><strong>'+esc(a.item)+'</strong>: '+a.ini+' a '+a.fim+'</div>').join('') + '</div>';
   }
-  if(plano.soRelatorio.length) h += '<div class="alert-box">Estas etapas existem no relatório mas não no cronograma, e ficam como estão: '+plano.soRelatorio.map(esc).join(', ')+'. Se forem a mesma etapa com outro nome, use o mesmo nome nos dois lados.</div>';
+  if(plano.remover.length) h += '<div class="card-label">Etapas do relatório que não estão no cronograma ('+plano.remover.length+')</div><div class="lista-envio">' + plano.remover.map(r => '<div>'+esc(r.item)+'</div>').join('') + '</div>' +
+    '<label class="check"><input type="checkbox" id="chkRemover" checked> Remover estas etapas do relatório (nenhuma tem %, status ou observação)</label>';
+  if(plano.manter.length) h += '<div class="alert-box">Estas etapas não estão no cronograma, mas <strong>ficam no relatório</strong> porque já têm registro: '+plano.manter.map(m => esc(m.item)+(m.pct ? ' ('+m.pct+'%)' : '')).join(', ')+'. Se for a mesma etapa com outro nome, use o mesmo nome nos dois lados; se saiu da obra, marque "não se aplica" no relatório.</div>';
   if(baseline) h += '<div class="info-box">O relatório também recebe o bloco <strong>Prazo da obra</strong>: cronograma inicial, previsão atual, diferença em dias úteis e as alterações de prazo desde o último relatório aprovado (etapa, categoria do motivo e impacto; o detalhe escrito pela equipe não vai para o cliente). "Replanejamento interno" aparece como "Ajuste de planejamento".</div>';
   h += '<div class="hint" style="margin:6px 0 0;">Só as datas são enviadas; status, % e observações do relatório não são tocados. Quem estiver com o relatório desta obra aberto precisa recarregar a página.</div>';
   document.getElementById('envioConteudo').innerHTML = h;
@@ -1615,11 +1622,14 @@ async function confirmarEnvio(){
   const btn = document.getElementById('btnConfirmarEnvio');
   btn.disabled = true; btn.textContent = 'Enviando...';
   try {
+    const chk = document.getElementById('chkRemover');
+    const removerSobras = !!(chk && chk.checked);
     const r = await buscarRascunho(); // relê na hora, para pegar a versão mais recente
-    const etapasRel = etapasDoRascunho(r);
+    let etapasRel = etapasDoRascunho(r);
     const plano = planoEnvio(etapasRel);
     plano.alteradas.forEach(a => { etapasRel[a.i].inicio = a.ini; etapasRel[a.i].fim = a.fim; });
     plano.statusNA.forEach(s => { etapasRel[s.i].status = s.na ? 'na' : ''; });
+    if(removerSobras){ const rm = new Set(plano.remover.map(x => x.i)); etapasRel = etapasRel.filter((e,i) => !rm.has(i)); }
     plano.novas.forEach(n => etapasRel.push({ tipo: n.tipo, item: n.item, inicio: n.ini, fim: n.fim, pct:0, status:'', obs:'', proximo:'', manual:true }));
     const etapasFinal = ordenarEtapasRelatorio(etapasRel);
     const prazo = await montarPrazoRelatorio();
@@ -1635,14 +1645,15 @@ async function confirmarEnvio(){
       if(error) throw error;
     }
     // Atualiza também o molde da obra (usado quando alguém "começa do zero" no relatório)
-    const baseObra = (Array.isArray(obra.etapas_base) ? obra.etapas_base : []).map(e => Object.assign({}, e));
+    let baseObra = (Array.isArray(obra.etapas_base) ? obra.etapas_base : []).map(e => Object.assign({}, e));
     const pb = planoEnvio(baseObra);
     pb.alteradas.forEach(a => { baseObra[a.i].inicio = a.ini; baseObra[a.i].fim = a.fim; });
+    if(removerSobras){ const rmb = new Set(pb.remover.map(x => x.i)); baseObra = baseObra.filter((e,i) => !rmb.has(i)); }
     pb.novas.forEach(n => baseObra.push({ tipo: n.tipo, item: n.item, inicio: n.ini, fim: n.fim }));
     const baseFinal = ordenarEtapasRelatorio(baseObra);
     const ob = await sb.from('obras').update({ etapas_base: baseFinal }).eq('id', obra.id);
     if(!ob.error) obra.etapas_base = baseFinal;
-    await registrarLog('enviou_relatorio', null, null, { alteradas: plano.alteradas.length, novas: plano.novas.length, previsao: prazo && prazo.previsao, alteracoes_prazo: prazo ? prazo.alteracoes.length : 0 });
+    await registrarLog('enviou_relatorio', null, null, { alteradas: plano.alteradas.length, novas: plano.novas.length, removidas: removerSobras ? plano.remover.length : 0, previsao: prazo && prazo.previsao, alteracoes_prazo: prazo ? prazo.alteracoes.length : 0 });
     rasc = await buscarRascunho();
     fecharModal('modalEnvio');
     renderObra();
